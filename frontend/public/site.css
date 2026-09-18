@@ -40,9 +40,8 @@ h1 { margin: 7px 0 0; font-size: clamp(30px,4vw,48px); line-height: 1.14; letter
 .current-ip { display: block; margin-top: 8px; color: var(--muted); font-family: ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",monospace; font-size: 12px; line-height: 1.2; }
 .theme-toggle { display: grid; place-items: center; flex: 0 0 auto; width: 44px; height: 44px; padding: 0; border: 1px solid var(--line); border-radius: 50%; background: var(--surface); box-shadow: 0 8px 22px rgba(0,0,0,.1); cursor: pointer; }
 .theme-toggle img { width: 21px; height: 21px; }
-.theme-toggle { transition: transform 250ms var(--ease),background 250ms var(--ease),box-shadow 250ms var(--ease); }
-.theme-toggle:hover { background: var(--surface-strong); transform: translateY(-2px) scale(1.06); box-shadow: 0 10px 26px rgba(0,0,0,.16); }
-.theme-toggle:active { transform: scale(.96); }
+.theme-toggle { transition: background 250ms var(--ease),box-shadow 250ms var(--ease); }
+.theme-toggle:hover { background: var(--surface-strong); box-shadow: 0 10px 26px rgba(95,161,255,.28); }
 button:focus-visible, a:focus-visible { outline: 3px solid rgba(95,161,255,.5); outline-offset: 3px; }
 
 /* 用分母计算宽度。保留空位，不拉伸、不居中。 */
@@ -101,7 +100,10 @@ button:focus-visible, a:focus-visible { outline: 3px solid rgba(95,161,255,.5); 
 @keyframes card-in { from { opacity: 0; transform: translateY(16px) scale(.98); } to { opacity: 1; transform: none; } }
 .modal-header { display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-shrink: 0; padding-bottom: 20px; }
 .modal-header h2 { margin: 0; font-size: 26px; overflow-wrap: anywhere; }
-.modal-close { flex: 0 0 auto; min-width: 36px; min-height: 36px; padding: 0 6px; border: 1px solid var(--line); border-radius: 11px; color: var(--text); background: transparent; font-size: 24px; cursor: pointer; }
+.modal-close { position: relative; display: grid; place-items: center; flex: 0 0 auto; width: 36px; height: 36px; padding: 0; border: 1px solid var(--line); border-radius: 11px; color: var(--text); background: transparent; cursor: pointer; }
+.modal-close::before, .modal-close::after { position: absolute; width: 16px; height: 2px; border-radius: 1px; background: currentColor; content: ""; }
+.modal-close::before { transform: rotate(45deg); }
+.modal-close::after { transform: rotate(-45deg); }
 .modal-content { min-height: 0; overflow: auto; scrollbar-width: none; color: var(--muted); overflow-wrap: anywhere; }
 .modal-content::-webkit-scrollbar { display: none; }
 .modal-content > :first-child { margin-top: 0; }
@@ -118,9 +120,8 @@ button:focus-visible, a:focus-visible { outline: 3px solid rgba(95,161,255,.5); 
 .code-block { padding-right: 76px; border-radius: 12px; background: rgba(127,154,204,.14); }
 .code-block pre { background: transparent; border-radius: 12px 0 0 12px; }
 .code-copy { position: absolute; top: 8px; right: 8px; max-width: 64px; min-width: 48px; min-height: 32px; padding: 4px 9px; border: 1px solid var(--line); border-radius: 9px; color: var(--muted); background: var(--surface-strong); font-size: 12px; cursor: pointer; }
-.modal-close, .code-copy { transition: transform 250ms var(--ease),box-shadow 250ms var(--ease),border-color 250ms var(--ease),background 250ms var(--ease); }
-.modal-close:is(:hover,:focus-visible), .code-copy:is(:hover,:focus-visible) { transform: translateY(-2px) scale(1.08); border-color: rgba(95,161,255,.55); background: var(--surface-strong); box-shadow: 0 7px 18px rgba(36,74,138,.18); }
-.modal-close:active, .code-copy:active { transform: scale(.96); }
+.modal-close, .code-copy { transition: box-shadow 250ms var(--ease),border-color 250ms var(--ease),background 250ms var(--ease); }
+.modal-close:is(:hover,:focus-visible), .code-copy:is(:hover,:focus-visible) { border-color: rgba(95,161,255,.55); background: var(--surface-strong); box-shadow: 0 7px 18px rgba(95,161,255,.28); }
 /* 高亮颜色也在热更新样式中，分别适配两种主题。 */
 :root { --code-keyword: #a626a4; --code-string: #28742b; --code-number: #a04b00; --code-title: #185fc3; --code-comment: #6a737d; --code-meta: #9b3b16; }
 html[data-theme="dark"] { --code-keyword: #c792ea; --code-string: #a5d67b; --code-number: #f7b267; --code-title: #82b7ff; --code-comment: #9aabc2; --code-meta: #ffb58b; }
@@ -161,5 +162,5 @@ body.modal-open { overflow: hidden; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; animation-duration: .01ms !important; animation-delay: 0ms !important; }
-  .nav-card:not(:disabled):is(:hover,:focus-visible), .theme-toggle:hover, .modal-close:is(:hover,:focus-visible), .code-copy:is(:hover,:focus-visible) { transform: none; }
+  .nav-card:not(:disabled):is(:hover,:focus-visible) { transform: none; }
 }

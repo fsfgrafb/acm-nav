@@ -24,7 +24,6 @@ const siteAssets = {
 const text = {
   theme_light: '切换为深色模式',
   theme_dark: '切换为浅色模式',
-  close: '×',
   close_label: '关闭',
   copy: '复制',
   copied: '已复制',
@@ -242,7 +241,7 @@ function App() {
       onAnimationEnd={event => { if (event.target === dialog.current && event.animationName === 'dialog-out' && closing.current) finishClose(); }}
       onClick={event => { if (event.target === dialog.current) { const r = dialog.current.getBoundingClientRect(); if (event.clientX < r.left || event.clientX > r.right || event.clientY < r.top || event.clientY > r.bottom) close(); } }}>
       <div className="modal-header"><h2 id="modal-title">{active?.name}</h2>
-        <button className="modal-close" type="button" onClick={close} aria-label={text.close_label}>{text.close}</button></div>
+        <button className="modal-close" type="button" onClick={close} aria-label={text.close_label} /></div>
       <div className="modal-content" tabIndex={0}><Markdown key={`${selected?.section}-${selected?.item}`} content={active?.content || ''} revision={revision} /></div>
     </dialog>
   </>;
