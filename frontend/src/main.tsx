@@ -16,10 +16,13 @@ import yaml from 'highlight.js/lib/languages/yaml';
 import ini from 'highlight.js/lib/languages/ini';
 
 const encodedPath = name => name.split('/').map(encodeURIComponent).join('/');
-const iconUrl = (name, revision) => `/static/icons/${encodedPath(name)}?v=${revision}`;
+const iconUrl = (name, revision) => `${name.startsWith('/icons/') ? encodedPath(name) : `/icons/${encodedPath(name)}`}?v=${revision}`;
 const siteAssets = {
-  logo: 'site/logo.svg', favicon: 'site/favicon.svg', light: 'site/sun.svg', dark: 'site/moon.svg', fallback: 'services/link.svg',
+  logo: '/icons/site/logo.svg', favicon: '/icons/site/favicon.svg', light: '/icons/site/sun.svg', dark: '/icons/site/moon.svg', fallback: '/icons/services/link.svg',
 };
+const resourceUrl = url => url?.startsWith('/resources/') || /^(?:[a-z][a-z\d+.-]*:|\/\/)/i.test(url)
+  ? url : `/resources/${url}`;
+const serviceIcon = icon => icon.startsWith('/icons/') ? icon : `services/${icon}`;
 // 操作和状态提示由前端统一维护，配置只负责站点展示内容。
 const text = {
   theme_light: '切换为深色模式',
@@ -52,8 +55,8 @@ function MarkdownImage({ src, ...props }) {
   const revision = React.useContext(RevisionContext);
   if (src) {
     try {
-      // 公告内的 ./assets/ 路径对应 public/resources/assets/。
-      if (src.startsWith('./assets/')) src = `/static/resources/assets/${src.slice('./assets/'.length)}`;
+      // 公告内的 ./assets/ 路径对应 static/resources/assets/。
+      if (src.startsWith('./assets/')) src = `/resources/assets/${src.slice('./assets/'.length)}`;
       const url = new URL(src, location.origin);
       const zoom = url.searchParams.get('_acmZoom');
       if (zoom) {
@@ -61,7 +64,7 @@ function MarkdownImage({ src, ...props }) {
         src = url.pathname + url.search + url.hash;
         props.style = { ...props.style, zoom };
       }
-      if (url.origin === location.origin && url.pathname.startsWith('/static/icons/')) {
+      if (url.origin === location.origin && url.pathname.startsWith('/icons/')) {
         url.searchParams.set('v', revision);
         src = url.pathname + url.search + url.hash;
       }
@@ -141,6 +144,7 @@ function App() {
     catch { return 'light'; }
   });
   const [selected, setSelected] = useState(null);
+  const [infoContent, setInfoContent] = useState('');
   const dialog = useRef(null);
   const closing = useRef(false);
   const closeTimer = useRef(null);
@@ -190,6 +194,24 @@ function App() {
     };
   }, [infoOpen]);
 
+  useEffect(() => {
+    if (!infoOpen) return;
+    if (!active?.url) {
+      setInfoContent(active?.content || '');
+      return;
+    }
+    const controller = new AbortController();
+    setInfoContent('正在加载…');
+    fetch(resourceUrl(active.url), { signal: controller.signal })
+      .then(response => {
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return response.text();
+      })
+      .then(content => setInfoContent(content))
+      .catch(error => { if (error.name !== 'AbortError') setInfoContent(`公告加载失败：${error.message}`); });
+    return () => controller.abort();
+  }, [infoOpen, active?.url, active?.content]);
+
   function finishClose() {
     clearTimeout(closeTimer.current);
     dialog.current.close();
@@ -215,12 +237,14 @@ function App() {
     const description = item.error || item.description;
     const Tag = info ? 'button' : 'a';
     return <Tag key={index} style={{ '--card-delay': `${Math.min(index, 6) * 45}ms` }} className={`nav-card accent-${index % 5 + 1} ${description ? 'has-description' : ''}`}
-      {...(Tag === 'a' ? {
-        href: item.url, target: '_blank', rel: 'noopener noreferrer',
+      {...(Tag === 'a' ? item.type === 'resource' ? {
+        href: resourceUrl(item.url), download: '',
+      } : {
+        href: resourceUrl(item.url), target: '_blank', rel: 'noopener noreferrer',
       } : { type: 'button' })}
       aria-label={issue ? `${item.name} (${issue})` : item.name} aria-haspopup={info ? 'dialog' : undefined}
       onClick={info ? event => { trigger.current = event.currentTarget; setSelected({ section: section.title, item: index }); } : undefined}>
-      <span className="card-icon"><Icon name={`services/${item.icon}`} revision={revision} fallback={siteAssets.fallback} /></span>
+      <span className="card-icon"><Icon name={serviceIcon(item.icon)} revision={revision} fallback={siteAssets.fallback} /></span>
       <span className="card-text"><span className="card-name">{item.name}{issue && ` · ${issue}`}</span>
         <span className="card-description">{description}</span></span>
     </Tag>;
@@ -263,7 +287,7 @@ function App() {
       onClick={event => { if (event.target === dialog.current) { const r = dialog.current.getBoundingClientRect(); if (event.clientX < r.left || event.clientX > r.right || event.clientY < r.top || event.clientY > r.bottom) close(); } }}>
       <div className="modal-header"><h2 id="modal-title">{active?.name}</h2>
         <button className="modal-close" type="button" onClick={close} aria-label={text.close_label} /></div>
-      <div className="modal-content" tabIndex={0}><Markdown key={`${selected?.section}-${selected?.item}`} content={active?.content || ''} revision={revision} /></div>
+      <div className="modal-content" tabIndex={0}><Markdown key={`${selected?.section}-${selected?.item}-${infoContent}`} content={infoContent} revision={revision} /></div>
     </dialog>
   </>;
 }

@@ -34,7 +34,7 @@ content = """
 
 这是**加粗**、*斜体*、~~删除线~~与 `行内代码`。访问[示例链接](https://example.com)，也可显示图片：
 
-![示例图片](/static/icons/services/link.svg)
+![示例图片](/icons/services/link.svg)
 
 ---
 

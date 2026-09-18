@@ -21,6 +21,11 @@ def local_path(root: Path, name: str) -> Path:
     return target
 
 
+def static_root(root: Path) -> Path:
+    deployed_static = root / "static"
+    return deployed_static if deployed_static.is_dir() else root / "frontend/dist"
+
+
 class Model(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -52,24 +57,43 @@ class Item(Model):
     name: str = Field(min_length=1)
     icon: str = "link.svg"
     description: str = ""
-    type: Literal["link", "info"] = "link"
+    type: Literal["link", "info", "resource"] = "link"
     url: str = ""
     content: str = ""
 
     @model_validator(mode="after")
     def check_content(self):
+        parsed = urlsplit(self.url)
+        http_url = parsed.scheme in {"http", "https"} and bool(parsed.hostname)
+        resource_url = (
+            bool(self.url)
+            and not parsed.scheme
+            and not parsed.netloc
+            and "\\" not in self.url
+            and all(part not in {"", ".", ".."} for part in parsed.path.split("/"))
+        ) or (self.url.startswith("/resources/") and len(self.url) > len("/resources/"))
         if self.type == "link":
-            parsed = urlsplit(self.url)
-            if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+            if not http_url:
                 raise ValueError("链接必须为有效的 HTTP(S) 地址")
+        elif self.type == "resource" and not (http_url or resource_url):
+            raise ValueError("资源必须使用 HTTP(S) 地址、资源文件名或 /resources/ 路径")
+        elif self.type == "info" and self.url:
+            if not (http_url or resource_url):
+                raise ValueError("公告文件必须使用 HTTP(S) 地址、资源文件名或 /resources/ 路径")
+            if Path(parsed.path).suffix.lower() not in {".md", ".markdown", ".txt"}:
+                raise ValueError("公告文件必须是 Markdown 或 TXT 文件")
         return self
 
     @field_validator("icon")
     @classmethod
     def service_icon(cls, value):
-        if not value or "/" in value or "\\" in value or ":" in value:
-            raise ValueError("图标必须是 static/icons/services/ 下的文件名")
-        return value if Path(value).suffix else value + ".svg"
+        if value.startswith("/icons/services/"):
+            name = value.removeprefix("/icons/services/")
+            if name and all(part not in {"", ".", ".."} for part in name.split("/")):
+                return value
+        elif value and "/" not in value and "\\" not in value and ":" not in value:
+            return value
+        raise ValueError("图标必须是 services 下的文件名或 /icons/services/ 路径")
 
 
 class Section(Model):
@@ -158,11 +182,8 @@ def read_config(path: Path, root: Path | None = None) -> Config:
             match = re.fullmatch(r"\[[^]]*\]\((https?://[^)]+)\)", url or "")
             if match:
                 item["url"] = match.group(1)
-            value = item.get("icon")
-            if isinstance(value, str) and value and not Path(value).suffix:
-                item["icon"] = value + ".svg"
             if root and "icon" not in item and item.get("type", "link") == "link":
-                filename = download_icon(item.get("url", ""), item.get("name", ""), root / "frontend/static/icons/services")
+                filename = download_icon(item.get("url", ""), item.get("name", ""), static_root(root) / "icons/services")
                 if filename:
                     item["icon"] = filename
     # 先验证整份配置，再回写，避免将无效编辑写回磁盘。
@@ -181,6 +202,7 @@ def load_site(path: Path, root: Path) -> dict:
     for section in data["sections"]:
         for item in section["items"]:
             if item["icon"]:
-                if not local_path(root / "frontend/static/icons/services", item["icon"]).is_file():
+                icon = item["icon"].removeprefix("/icons/") if item["icon"].startswith("/icons/") else f"services/{item['icon']}"
+                if not local_path(static_root(root) / "icons", icon).is_file():
                     item["error"] = "文件不存在"
     return data

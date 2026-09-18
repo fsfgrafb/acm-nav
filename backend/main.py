@@ -21,6 +21,16 @@ log = logging.getLogger("uvicorn.error")
 NO_CACHE = {"Cache-Control": "no-store"}
 
 
+def frontend_root(root: Path) -> Path:
+    development_build = root / "frontend/dist"
+    return development_build if development_build.is_dir() else root / "frontend"
+
+
+def static_root(root: Path) -> Path:
+    deployed_static = root / "static"
+    return deployed_static if deployed_static.is_dir() else frontend_root(root)
+
+
 def fingerprint(paths: list[Path]) -> tuple:
     # 只读取元数据，大型下载文件也不会反复读入内存。
     entries = []
@@ -55,7 +65,7 @@ class LiveSite:
             self.error = str(exc)
             log.warning("配置更新未应用：%s", exc)
         self.revision = time.time_ns()
-        output = self.root / "frontend/static"
+        output = frontend_root(self.root)
         self.build = hashlib.sha256(
             repr(
                 fingerprint(
@@ -89,7 +99,7 @@ class LiveSite:
         }
 
     async def watch(self):
-        paths = [self.config, self.root / "frontend/static"]
+        paths = [self.config, frontend_root(self.root), static_root(self.root)]
         previous = await asyncio.to_thread(fingerprint, paths)
         self.refresh()
         while True:
@@ -181,25 +191,25 @@ def create_app(root: Path = ROOT, config: Path | None = None) -> FastAPI:
             path, headers={**NO_CACHE, "X-Content-Type-Options": "nosniff"}
         )
 
-    @app.get("/static/icons/{name:path}")
+    @app.get("/icons/{name:path}")
     async def icon(name: str):
-        return file(root / "frontend/static/icons", name)
+        return file(static_root(root) / "icons", name)
 
-    @app.get("/static/resources/{name:path}")
+    @app.get("/resources/{name:path}")
     async def resource(name: str):
-        return file(root / "frontend/static/resources", name)
+        return file(static_root(root) / "resources", name)
 
     @app.get("/site.css")
     async def stylesheet():
-        return file(root / "frontend/static", "site.css")
+        return file(frontend_root(root), "site.css")
 
     @app.get("/assets/{name:path}")
     async def asset(name: str):
-        return file(root / "frontend/static/assets", name)
+        return file(frontend_root(root) / "assets", name)
 
     @app.get("/")
     async def index():
-        return file(root / "frontend/static", "index.html")
+        return file(frontend_root(root), "index.html")
 
     return app
 

@@ -1,6 +1,7 @@
 .venv/
 node_modules/
-/frontend/static/
+/static/
+/frontend/dist/
 __pycache__/
 *.pyc
 *.log

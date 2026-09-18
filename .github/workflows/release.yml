@@ -35,9 +35,11 @@ jobs:
 
       - name: Package release
         run: |
-          mkdir -p package/acm-nav/frontend
+          mkdir -p package/acm-nav/frontend package/acm-nav/static
           cp -R backend package/acm-nav/
-          cp -R frontend/static package/acm-nav/frontend/
+          cp -R frontend/dist/. package/acm-nav/frontend/
+          cp -R frontend/dist/icons frontend/dist/resources package/acm-nav/static/
+          rm -rf package/acm-nav/frontend/icons package/acm-nav/frontend/resources
           cp requirements.txt README.md LICENSE package/acm-nav/
           cd package/acm-nav
           zip -qr "../../acm-nav-${RELEASE_TAG}.zip" .

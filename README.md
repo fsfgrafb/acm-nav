@@ -4,7 +4,7 @@ TOML 驱动的 ACM 集训队导航页。
 
 ## 部署
 
-从 GitHub Release 下载 `acm-nav-v1.0.1.zip`（替换为实际版本号）并上传到 Linux 服务器。以下以 `/opt/acm-nav` 为部署目录；服务器只需要 Python 3.11+ 和 `python3-venv`：
+从 GitHub Release 下载 `acm-nav-v1.0.1.zip`（替换为实际版本号）并上传到 Linux 服务器。以下以 `/opt/acm-nav` 为部署目录；服务器只需要 Python 3.11+ 和 `python3-venv`。`/opt/acm-nav` 只是示例，程序不会硬编码该路径：可替换为任意绝对安装目录，程序会以包含 `backend/`、`frontend/`、`static/` 的 `acm-nav` 根目录为准。
 
 ```bash
 sudo apt install python3 python3-venv unzip
@@ -43,6 +43,19 @@ sudo systemctl daemon-reload && sudo systemctl enable --now acm-nav && sudo syst
 
 首次启动会创建 `/opt/acm-nav/config.toml`。默认访问地址为 `http://服务器 IP/`。
 
+部署后的目录结构如下：
+
+```text
+/opt/acm-nav/
+├── backend/                 # 后端代码
+├── frontend/                # 前端页面：HTML、CSS、JS
+└── static/                  # 图标与资源文件
+    ├── icons/services/      # 链接图标
+    ├── icons/site/          # 网站图标
+    └── resources/           # 下载资源、Markdown 与 TXT 公告
+        └── assets/          # Markdown 公告引用的图片
+```
+
 如需由普通用户维护配置，将其加入服务组并授予配置目录写权限（将 `<用户名>` 替换为实际登录名）：
 
 ```bash
@@ -68,6 +81,32 @@ sudo systemctl status acm-nav
 ```
 
 后续版本只需将压缩包文件名替换为对应版本号。确认网站正常后，可按需保留或删除 `/opt/acm-nav/config.toml.bak`。
+
+## 卸载
+
+仅移除 systemd 服务、保留程序与配置文件：
+
+```bash
+sudo systemctl disable --now acm-nav
+sudo rm -f /etc/systemd/system/acm-nav.service
+sudo systemctl daemon-reload
+sudo systemctl reset-failed
+```
+
+如需彻底删除程序、虚拟环境和配置，请先将下面的安装目录改为实际路径并确认无误；第二段命令不可恢复。建议先备份 `config.toml`：
+
+```bash
+APP_DIR="/opt/acm-nav"  # 替换为实际安装目录
+sudo cp -a "$APP_DIR/config.toml" "$APP_DIR.config.toml.bak"
+```
+
+```bash
+APP_DIR="/opt/acm-nav"  # 替换为实际安装目录
+sudo rm -rf -- "$APP_DIR"
+sudo userdel acm-nav
+```
+
+如果 `acm-nav` 用户或组还被其他服务使用，请跳过最后一条 `userdel`。
 
 ## 开发
 
@@ -116,11 +155,27 @@ npm --prefix frontend run build
 | 字段 | 类型／默认值 | 适用类型与说明 |
 | --- | --- | --- |
 | `name` | 字符串，必填 | 卡片名称。 |
-| `type` | `"link"`（默认）或 `"info"` | `link` 为外部链接；`info` 为点击后弹出的公告。 |
-| `icon` | 文件名，默认 `link.svg` | `frontend/public/icons/services/` 下的图标文件名；可省略 `.svg` 后缀。链接项目未填写时会先读取网页声明的图标，未声明则请求 `/favicon.ico`；抓取失败则使用 `link.svg`。 |
+| `type` | `"link"`（默认）、`"info"` 或 `"resource"` | `link` 为外部链接；`info` 为点击后弹出的公告；`resource` 为打开资源文件。 |
+| `icon` | 文件名，默认 `link.svg` | 简写如 `link.svg` 对应 `static/icons/services/link.svg`；也可写完整网页路径 `/icons/services/link.svg`。链接项目未填写时会先读取网页声明的图标，未声明则请求 `/favicon.ico`；抓取失败则使用 `link.svg`。 |
 | `description` | 字符串，默认空 | 卡片说明；鼠标悬浮时显示。 |
-| `url` | 字符串，默认空 | `type = "link"` 时必填，且必须是完整的 `http://` 或 `https://` 地址。 |
-| `content` | 字符串，默认空 | `type = "info"` 时使用，支持 Markdown。 |
+| `url` | 字符串，默认空 | `link` 必填，且必须是完整 HTTP(S) 地址。`resource` 必填；简写如 `a.exe` 对应 `static/resources/a.exe`，也可使用 HTTP(S) 或 `/resources/a.exe`。`info` 可选；填写时必须指向 HTTP(S)、资源文件名或 `/resources/` 下的 `.md`、`.markdown`、`.txt` 文件。 |
+| `content` | 字符串，默认空 | `type = "info"` 时使用，支持 Markdown；若设置了 `url`，则加载该文件内容。 |
+
+路径简写示例：
+
+```toml
+# static/icons/services/a.svg
+icon = "a.svg"
+# 与上一行等价
+icon = "/icons/services/a.svg"
+
+# type = "info"：static/resources/a.md
+url = "a.md"
+# type = "resource"：static/resources/a.exe
+url = "a.exe"
+# 资源完整网页路径
+url = "/resources/a.exe"
+```
 
 示例：
 
@@ -138,9 +193,9 @@ description = "仅管理员可见"
 content = "# 通知\n\n这里支持 **Markdown**。"
 ```
 
-图标源文件放在 `frontend/public/icons/services/`；构建时会复制到 `frontend/static/`，该目录为 Git 忽略的构建产物。
+图标源文件放在 `frontend/public/icons/services/`；构建时会复制到根目录的 `static/icons/services/`，该目录为 Git 忽略的构建产物。
 
-公告中使用的图片、附件等资源放在 `frontend/public/resources/assets/`。构建后，它们位于服务器文件系统的 `frontend/static/resources/assets/`。公告中图片统一使用相对于 `assets` 目录的 HTML 写法：
+公告中使用的图片、附件等资源放在 `frontend/public/resources/assets/`。构建后，它们位于服务器文件系统的 `static/resources/assets/`。公告中图片统一使用相对于 `assets` 目录的 HTML 写法：
 
 ```html
 <img src="./assets/training-plan.png" alt="训练安排" style="zoom:50%;" />
