@@ -54,6 +54,21 @@ sudo chmod 664 /opt/acm-nav/config.toml
 
 该用户重新登录后可直接编辑 `/opt/acm-nav/config.toml`；保存后网站自动热更新，无需重启服务。
 
+## 更新
+
+以下示例将已部署的站点更新至 `v1.0.3`。发布包不会包含 `config.toml`，但仍会在更新前覆盖保存一份 `config.toml.bak`，便于意外时恢复：
+
+```bash
+sudo systemctl stop acm-nav
+sudo cp -a /opt/acm-nav/config.toml /opt/acm-nav/config.toml.bak
+sudo unzip -o acm-nav-v1.0.3.zip -d /opt/acm-nav
+sudo -u acm-nav /opt/acm-nav/.venv/bin/pip install -r /opt/acm-nav/requirements.txt
+sudo systemctl start acm-nav
+sudo systemctl status acm-nav
+```
+
+后续版本只需将压缩包文件名替换为对应版本号。确认网站正常后，可按需保留或删除 `/opt/acm-nav/config.toml.bak`。
+
 ## 开发
 
 Windows 上安装 Python 3.11+ 和 Node.js 后，在 PowerShell 依次执行：
