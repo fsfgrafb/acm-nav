@@ -117,7 +117,7 @@ npm --prefix frontend run build
 | --- | --- | --- |
 | `name` | 字符串，必填 | 卡片名称。 |
 | `type` | `"link"`（默认）或 `"info"` | `link` 为外部链接；`info` 为点击后弹出的公告。 |
-| `icon` | 文件名，默认 `link.svg` | `frontend/public/icons/services/` 下的图标文件名；可省略 `.svg` 后缀。链接项目未填写时会尝试抓取网站图标，失败则使用 `link.svg`。 |
+| `icon` | 文件名，默认 `link.svg` | `frontend/public/icons/services/` 下的图标文件名；可省略 `.svg` 后缀。链接项目未填写时会先读取网页声明的图标，未声明则请求 `/favicon.ico`；抓取失败则使用 `link.svg`。 |
 | `description` | 字符串，默认空 | 卡片说明；鼠标悬浮时显示。 |
 | `url` | 字符串，默认空 | `type = "link"` 时必填，且必须是完整的 `http://` 或 `https://` 地址。 |
 | `content` | 字符串，默认空 | `type = "info"` 时使用，支持 Markdown。 |
@@ -139,3 +139,9 @@ content = "# 通知\n\n这里支持 **Markdown**。"
 ```
 
 图标源文件放在 `frontend/public/icons/services/`；构建时会复制到 `frontend/static/`，该目录为 Git 忽略的构建产物。
+
+公告中使用的图片、附件等资源放在 `frontend/public/resources/assets/`。构建后，它们位于服务器文件系统的 `frontend/static/resources/assets/`。公告中图片统一使用相对于 `assets` 目录的 HTML 写法：
+
+```html
+<img src="./assets/training-plan.png" alt="训练安排" style="zoom:50%;" />
+```

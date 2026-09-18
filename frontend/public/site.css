@@ -3,14 +3,14 @@
   color-scheme: light;
   --bg: #f3f7fc; --bg-soft: #dce9f9;
   --surface: rgba(255,255,255,.75); --surface-strong: rgba(255,255,255,.96);
-  --line: rgba(38,75,140,.14); --text: #10213c; --muted: #60708d;
+  --line: rgba(38,75,140,.14); --text: #10213c; --muted: #60708d; --subtle: #8491a6;
   --shadow: 0 22px 55px rgba(36,74,138,.14); --ease: cubic-bezier(.4,0,.2,1);
 }
 html[data-theme="dark"] {
   color-scheme: dark;
   --bg: #060d1a; --bg-soft: #10213e;
   --surface: rgba(15,28,52,.72); --surface-strong: rgba(19,35,64,.98);
-  --line: rgba(163,193,255,.16); --text: #f5f8ff; --muted: #98a9c7;
+  --line: rgba(163,193,255,.16); --text: #f5f8ff; --muted: #98a9c7; --subtle: #b2bdd1;
   --shadow: 0 22px 55px rgba(0,0,0,.28);
 }
 * { box-sizing: border-box; }
@@ -37,7 +37,7 @@ main.page-shell { padding-block: 28px 64px; }
 .brand-copy { min-width: 0; }
 .brand-kicker { display: block; color: #5f9fff; font-size: 12px; font-weight: 800; letter-spacing: .18em; }
 h1 { margin: 7px 0 0; font-size: clamp(30px,4vw,48px); line-height: 1.14; letter-spacing: -.045em; overflow-wrap: anywhere; }
-.current-ip { display: block; margin-top: 8px; color: var(--muted); font-family: ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",monospace; font-size: 12px; line-height: 1.2; }
+.current-ip { display: block; margin-top: 8px; color: var(--subtle); font-family: ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",monospace; font-size: 12px; font-weight: 800; line-height: 1.2; }
 .theme-toggle { display: grid; place-items: center; flex: 0 0 auto; width: 44px; height: 44px; padding: 0; border: 1px solid var(--line); border-radius: 50%; background: var(--surface); box-shadow: 0 8px 22px rgba(0,0,0,.1); cursor: pointer; }
 .theme-toggle img { width: 21px; height: 21px; }
 .theme-toggle { transition: background 250ms var(--ease),box-shadow 250ms var(--ease); }
@@ -148,6 +148,7 @@ body.modal-open { overflow: hidden; }
   .brand { gap: 16px; }
   .brand-mark { width: 68px; height: 68px; }
   .brand-kicker { font-size: 10px; letter-spacing: .13em; }
+  .current-ip { font-size: 10px; }
   h1 { font-size: clamp(23px,6.8vw,31px); }
   .theme-toggle { width: 40px; height: 40px; }
   .service-section { flex-basis: 100%; }

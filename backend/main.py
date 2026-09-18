@@ -185,6 +185,10 @@ def create_app(root: Path = ROOT, config: Path | None = None) -> FastAPI:
     async def icon(name: str):
         return file(root / "frontend/static/icons", name)
 
+    @app.get("/static/resources/{name:path}")
+    async def resource(name: str):
+        return file(root / "frontend/static/resources", name)
+
     @app.get("/site.css")
     async def stylesheet():
         return file(root / "frontend/static", "site.css")

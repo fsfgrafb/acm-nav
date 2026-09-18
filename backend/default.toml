@@ -1,4 +1,8 @@
 # 编辑此文件生成的 config.toml，保存后页面会自动更新。
+[server]
+host = "0.0.0.0"
+port = 80
+
 [appearance]
 title = "导航站点"
 kicker = "NAVIGATION"

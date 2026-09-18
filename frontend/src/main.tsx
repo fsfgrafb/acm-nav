@@ -52,7 +52,15 @@ function MarkdownImage({ src, ...props }) {
   const revision = React.useContext(RevisionContext);
   if (src) {
     try {
+      // 公告内的 ./assets/ 路径对应 public/resources/assets/。
+      if (src.startsWith('./assets/')) src = `/static/resources/assets/${src.slice('./assets/'.length)}`;
       const url = new URL(src, location.origin);
+      const zoom = url.searchParams.get('_acmZoom');
+      if (zoom) {
+        url.searchParams.delete('_acmZoom');
+        src = url.pathname + url.search + url.hash;
+        props.style = { ...props.style, zoom };
+      }
       if (url.origin === location.origin && url.pathname.startsWith('/static/icons/')) {
         url.searchParams.set('v', revision);
         src = url.pathname + url.search + url.hash;
@@ -60,6 +68,19 @@ function MarkdownImage({ src, ...props }) {
     } catch {} // 无效图片地址不应中断整张公告。
   }
   return <img {...props} src={src} />;
+}
+
+function normalizeAnnouncementImages(content) {
+  // 仅转换公告中约定的 <img src="./assets/..."> 写法，避免启用整段原始 HTML。
+  return content.replace(/<img\s+([^>]*?)\s*\/?\s*>/gi, (tag, attributes) => {
+    const read = name => new RegExp(`\\b${name}\\s*=\\s*(["'])(.*?)\\1`, 'i').exec(attributes)?.[2];
+    const src = read('src');
+    if (!src?.startsWith('./assets/')) return tag;
+    const alt = read('alt') || '';
+    const zoom = /(?:^|;)\s*zoom\s*:\s*([^;]+)/i.exec(read('style') || '')?.[1]?.trim();
+    const target = zoom ? `${src}${src.includes('?') ? '&' : '?'}_acmZoom=${encodeURIComponent(zoom)}` : src;
+    return `![${alt.replace(/[\[\]\\]/g, '\\$&')}](${target.replace(/[()\\]/g, '\\$&')})`;
+  });
 }
 
 function CodeBlock({ children }) {
@@ -102,7 +123,7 @@ function Markdown({ content, revision }) {
   return <RevisionContext.Provider value={revision}><ReactMarkdown remarkPlugins={[remarkGfm]} components={{
     pre: CodeBlock, code: HighlightedCode, img: MarkdownImage,
     a: ({ node, ...props }) => <a {...props} target="_blank" rel="noopener noreferrer" />,
-  }}>{content}</ReactMarkdown></RevisionContext.Provider>;
+  }}>{normalizeAnnouncementImages(content)}</ReactMarkdown></RevisionContext.Provider>;
 }
 
 function Icon({ name, revision, fallback }) {
