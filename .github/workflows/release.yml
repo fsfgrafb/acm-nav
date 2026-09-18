@@ -39,8 +39,8 @@ jobs:
           cp -R backend package/acm-nav/
           cp -R frontend/static package/acm-nav/frontend/
           cp requirements.txt README.md LICENSE package/acm-nav/
-          cd package
-          zip -qr "../acm-nav-${RELEASE_TAG}.zip" acm-nav
+          cd package/acm-nav
+          zip -qr "../../acm-nav-${RELEASE_TAG}.zip" .
 
       - name: Create GitHub Release
         env:
