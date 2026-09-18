@@ -171,7 +171,9 @@ def download_icon(url: str, name: str, directory: Path) -> str | None:
     return filename
 
 
-def read_config(path: Path, root: Path | None = None) -> Config:
+def read_config(
+    path: Path, root: Path | None = None, download_icons: bool = False
+) -> Config:
     original = path.read_text(encoding="utf-8-sig")
     document = tomlkit.parse(original)
     for section in document.get("sections", []):
@@ -182,7 +184,13 @@ def read_config(path: Path, root: Path | None = None) -> Config:
             match = re.fullmatch(r"\[[^]]*\]\((https?://[^)]+)\)", url or "")
             if match:
                 item["url"] = match.group(1)
-            if root and "icon" not in item and item.get("type", "link") == "link":
+            # 下载图标会访问网络，只能由后台任务显式触发，不能阻塞启动或热更新。
+            if (
+                download_icons
+                and root
+                and "icon" not in item
+                and item.get("type", "link") == "link"
+            ):
                 filename = download_icon(item.get("url", ""), item.get("name", ""), static_root(root) / "icons/services")
                 if filename:
                     item["icon"] = filename

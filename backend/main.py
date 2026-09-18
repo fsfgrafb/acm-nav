@@ -55,6 +55,7 @@ class LiveSite:
         self.revision = 0
         self.build = ""
         self.changed = asyncio.Condition()
+        self.icon_download = None
 
     def refresh(self):
         try:
@@ -76,6 +77,21 @@ class LiveSite:
                 )
             ).encode()
         ).hexdigest()[:16]
+
+    async def queue_icon_download(self):
+        """Fetch missing link icons without delaying application startup or reloads."""
+        if self.icon_download and not self.icon_download.done():
+            return
+
+        async def download():
+            try:
+                # The normal refresh validates and serves the configuration first.
+                # This pass only materializes optional icons for items that omit one.
+                await asyncio.to_thread(read_config, self.config, self.root, True)
+            except (ValueError, OSError) as exc:
+                log.warning("图标下载未完成：%s", exc)
+
+        self.icon_download = asyncio.create_task(download())
 
     def payload(self, admin=False, current_ip=None):
         site = copy.deepcopy(self.site)
@@ -102,6 +118,7 @@ class LiveSite:
         paths = [self.config, frontend_root(self.root), static_root(self.root)]
         previous = await asyncio.to_thread(fingerprint, paths)
         self.refresh()
+        await self.queue_icon_download()
         while True:
             await asyncio.sleep(0.5)
             current = await asyncio.to_thread(fingerprint, paths)
@@ -114,6 +131,7 @@ class LiveSite:
                 continue
             previous = stable
             await asyncio.to_thread(self.refresh)
+            await self.queue_icon_download()
             async with self.changed:
                 self.changed.notify_all()
 
@@ -129,11 +147,16 @@ def create_app(root: Path = ROOT, config: Path | None = None) -> FastAPI:
     async def lifespan(app):
         ensure_config(config)
         live.refresh()
+        await live.queue_icon_download()
         watcher = asyncio.create_task(live.watch())
         yield
         watcher.cancel()
         with suppress(asyncio.CancelledError):
             await watcher
+        if live.icon_download:
+            live.icon_download.cancel()
+            with suppress(asyncio.CancelledError):
+                await live.icon_download
 
     app = FastAPI(lifespan=lifespan, docs_url=None, redoc_url=None)
     app.state.live = live

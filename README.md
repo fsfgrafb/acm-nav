@@ -196,8 +196,4 @@ content = "# 通知\n\n这里支持 **Markdown**。"
 
 图标源文件放在 `frontend/public/icons/services/`；构建时会复制到根目录的 `static/icons/services/`，该目录为 Git 忽略的构建产物。
 
-公告中使用的图片、附件等资源放在 `frontend/public/resources/assets/`。构建后，它们位于服务器文件系统的 `static/resources/assets/`。公告中图片统一使用相对于 `assets` 目录的 HTML 写法：
-
-```html
-<img src="./assets/training-plan.png" alt="训练安排" style="zoom:50%;" />
-```
+公告中使用的图片、附件等资源放在 `frontend/public/resources/assets/`；构建后位于服务器的 `static/resources/assets/`。公告可使用相对于 `assets` 目录的 Markdown 路径，例如图片 `![训练安排](./assets/training-plan.png)` 或附件链接 `[下载附件](./assets/training-plan.pdf)`。

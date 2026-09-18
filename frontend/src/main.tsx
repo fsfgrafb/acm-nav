@@ -73,6 +73,12 @@ function MarkdownImage({ src, ...props }) {
   return <img {...props} src={src} />;
 }
 
+function MarkdownLink({ href, ...props }) {
+  // 公告内的 ./assets/ 路径对应 static/resources/assets/。
+  if (href?.startsWith('./assets/')) href = `/resources/assets/${href.slice('./assets/'.length)}`;
+  return <a {...props} href={href} target="_blank" rel="noopener noreferrer" />;
+}
+
 function normalizeAnnouncementImages(content) {
   // 仅转换公告中约定的 <img src="./assets/..."> 写法，避免启用整段原始 HTML。
   return content.replace(/<img\s+([^>]*?)\s*\/?\s*>/gi, (tag, attributes) => {
@@ -125,7 +131,7 @@ function CodeBlock({ children }) {
 function Markdown({ content, revision }) {
   return <RevisionContext.Provider value={revision}><ReactMarkdown remarkPlugins={[remarkGfm]} components={{
     pre: CodeBlock, code: HighlightedCode, img: MarkdownImage,
-    a: ({ node, ...props }) => <a {...props} target="_blank" rel="noopener noreferrer" />,
+    a: MarkdownLink,
   }}>{normalizeAnnouncementImages(content)}</ReactMarkdown></RevisionContext.Provider>;
 }
 
