@@ -74,8 +74,8 @@ function MarkdownImage({ src, ...props }) {
 }
 
 function MarkdownLink({ href, ...props }) {
-  // 公告内的 ./assets/ 路径对应 static/resources/assets/。
-  if (href?.startsWith('./assets/')) href = `/resources/assets/${href.slice('./assets/'.length)}`;
+  // 公告文件的相对链接以 static/resources/ 为基准。
+  if (href?.startsWith('./')) href = `/resources/${href.slice('./'.length)}`;
   return <a {...props} href={href} target="_blank" rel="noopener noreferrer" />;
 }
 
