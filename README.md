@@ -69,8 +69,6 @@ sudo find /opt/acm-nav/static -type d -exec chmod 2775 {} +
 sudo find /opt/acm-nav/static -type f -exec chmod 664 {} +
 ```
 
-该用户重新登录后可直接编辑 `/opt/acm-nav/config.toml`、用 SFTP 上传静态资源，也可正常设置文件时间戳和权限；保存配置后网站自动热更新，无需重启服务。
-
 ## 更新
 
 以下示例将已部署的站点更新至 `v1.0.3`。发布包不会包含 `config.toml`，但仍会在更新前覆盖保存一份 `config.toml.bak`，便于意外时恢复：
