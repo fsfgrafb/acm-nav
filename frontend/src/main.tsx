@@ -22,7 +22,6 @@ const siteAssets = {
 };
 // 操作和状态提示由前端统一维护，配置只负责站点展示内容。
 const text = {
-  current_ip: '当前访问 IP：{ip}',
   theme_light: '切换为深色模式',
   theme_dark: '切换为浅色模式',
   close: '×',
@@ -222,6 +221,7 @@ function App() {
         <div className="brand">
           <span className="brand-mark"><Icon name={siteAssets.logo} revision={revision} fallback={siteAssets.fallback} /></span>
           <div className="brand-copy"><span className="brand-kicker">{appearance.kicker}</span><h1>{appearance.title}</h1>
+            {snapshot.current_ip && <span className="current-ip">{snapshot.current_ip}</span>}
           </div>
         </div>
         <button className="theme-toggle" aria-label={text[`theme_${theme}`]} title={text[`theme_${theme}`]}
@@ -235,9 +235,6 @@ function App() {
           {site.sections.filter(section => section.visibility === 'admin').map(sectionView)}
         </div>}
       </main>
-      <footer className="site-footer page-shell">
-        <p>{import.meta.env.DEV ? '开发代理：实际部署后显示客户端 IP' : `${text.current_ip.replace('{ip}', snapshot.current_ip || '')}${snapshot.is_admin ? ' admin' : ''}`}</p>
-      </footer>
     </>}
     {(!site || offline) && <p className="connection-note" role="status">{offline ? text.offline : snapshot?.stale ? text.unavailable : text.loading}</p>}
     {/* 原生 dialog 保留焦点约束，内容区可滚动但不显示滚动条。 */}

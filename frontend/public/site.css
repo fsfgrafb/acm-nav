@@ -32,11 +32,12 @@ button { font-family: inherit; }
 main.page-shell { padding-block: 28px 64px; }
 .site-header { display: flex; align-items: center; justify-content: space-between; gap: 20px; min-height: 176px; padding-block: 24px; border-bottom: 1px solid var(--line); }
 .brand { display: flex; align-items: center; gap: 30px; min-width: 0; }
-.brand-mark { display: grid; place-items: center; flex: 0 0 auto; width: 112px; height: 112px; overflow: hidden; border-radius: 50%; background: #fff; }
+.brand-mark { display: grid; place-items: center; flex: 0 0 auto; width: 112px; height: 112px; overflow: hidden; border-radius: 50%; }
 .brand-mark img { width: 100%; height: 100%; object-fit: contain; }
 .brand-copy { min-width: 0; }
 .brand-kicker { display: block; color: #5f9fff; font-size: 12px; font-weight: 800; letter-spacing: .18em; }
 h1 { margin: 7px 0 0; font-size: clamp(30px,4vw,48px); line-height: 1.14; letter-spacing: -.045em; overflow-wrap: anywhere; }
+.current-ip { display: block; margin-top: 8px; color: var(--muted); font-family: ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",monospace; font-size: 12px; line-height: 1.2; }
 .theme-toggle { display: grid; place-items: center; flex: 0 0 auto; width: 44px; height: 44px; padding: 0; border: 1px solid var(--line); border-radius: 50%; background: var(--surface); box-shadow: 0 8px 22px rgba(0,0,0,.1); cursor: pointer; }
 .theme-toggle img { width: 21px; height: 21px; }
 .theme-toggle { transition: transform 250ms var(--ease),background 250ms var(--ease),box-shadow 250ms var(--ease); }
