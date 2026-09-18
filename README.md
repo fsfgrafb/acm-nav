@@ -60,7 +60,6 @@ sudo systemctl daemon-reload && sudo systemctl enable --now acm-nav && sudo syst
 
 ```bash
 ACM_NAV_MAINTAINER="acm"  # 替换为实际登录名
-sudo usermod -aG acm-nav "$ACM_NAV_MAINTAINER"
 sudo chown "$ACM_NAV_MAINTAINER":acm-nav /opt/acm-nav/config.toml
 sudo chmod 664 /opt/acm-nav/config.toml
 
