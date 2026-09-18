@@ -4,13 +4,13 @@ TOML 驱动的 ACM 集训队导航页。
 
 ## 部署
 
-从 GitHub Release 下载部署 ZIP 并上传到 Linux 服务器。以下以 `/opt/acm-nav` 为部署目录；服务器只需要 Python 3.11+ 和 `python3-venv`：
+从 GitHub Release 下载 `acm-nav-v1.0.1.zip`（替换为实际版本号）并上传到 Linux 服务器。以下以 `/opt/acm-nav` 为部署目录；服务器只需要 Python 3.11+ 和 `python3-venv`：
 
 ```bash
 sudo apt install python3 python3-venv unzip
 sudo useradd --system --user-group --home /opt/acm-nav --shell /usr/sbin/nologin acm-nav
 sudo mkdir -p /opt/acm-nav
-sudo unzip acm-nav.zip -d /opt/acm-nav
+sudo unzip acm-nav-v1.0.1.zip -d /opt/acm-nav
 sudo chown -R acm-nav:acm-nav /opt/acm-nav
 sudo -u acm-nav python3 -m venv /opt/acm-nav/.venv
 sudo -u acm-nav /opt/acm-nav/.venv/bin/pip install -r /opt/acm-nav/requirements.txt
