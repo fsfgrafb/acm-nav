@@ -56,14 +56,15 @@ sudo systemctl daemon-reload && sudo systemctl enable --now acm-nav && sudo syst
         └── assets/          # Markdown 公告引用的图片
 ```
 
-如需由普通用户维护配置和静态资源，应让该用户成为 `config.toml` 与 `static/` 的属主。服务仍通过 `acm-nav` 组读取配置、访问图标和资源（将 `<用户名>` 替换为实际登录名）：
+如需由普通用户维护配置和静态资源，应让该用户成为 `config.toml` 与 `static/` 的属主。服务仍通过 `acm-nav` 组读取配置、访问图标和资源。先指定维护用户名：
 
 ```bash
-sudo usermod -aG acm-nav <用户名>
-sudo chown <用户名>:acm-nav /opt/acm-nav/config.toml
+ACM_NAV_MAINTAINER="acm"  # 替换为实际登录名
+sudo usermod -aG acm-nav "$ACM_NAV_MAINTAINER"
+sudo chown "$ACM_NAV_MAINTAINER":acm-nav /opt/acm-nav/config.toml
 sudo chmod 664 /opt/acm-nav/config.toml
 
-sudo chown -R <用户名>:acm-nav /opt/acm-nav/static
+sudo chown -R "$ACM_NAV_MAINTAINER":acm-nav /opt/acm-nav/static
 sudo find /opt/acm-nav/static -type d -exec chmod 2775 {} +
 sudo find /opt/acm-nav/static -type f -exec chmod 664 {} +
 ```
