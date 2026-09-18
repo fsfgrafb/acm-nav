@@ -37,6 +37,49 @@ def icon_exists(root: Path, icon: object) -> bool:
         return False
 
 
+def reorder_table(table, fields: tuple[str, ...]):
+    """Create a TOML table with its known fields in a stable order."""
+    ordered = tomlkit.table()
+    for field in fields:
+        if field in table:
+            ordered.add(field, table[field])
+    return ordered
+
+
+def format_document(document):
+    """Format the supported configuration schema in a deterministic field order."""
+    formatted = tomlkit.document()
+    for field in ("server", "appearance", "admin"):
+        if field in document:
+            formatted.add(field, document[field])
+
+    sections = tomlkit.aot()
+    for section in document.get("sections", []):
+        ordered_section = tomlkit.table()
+        for field in ("title", "visibility", "width", "columns"):
+            if field in section:
+                ordered_section.add(field, section[field])
+        items = tomlkit.aot()
+        for item in section.get("items", []):
+            items.append(
+                reorder_table(
+                    item, ("name", "type", "url", "icon", "description", "content")
+                )
+            )
+        if items:
+            ordered_section.add("items", items)
+        sections.append(ordered_section)
+    if sections:
+        formatted.add("sections", sections)
+    return formatted
+
+
+def leading_comments(content: str) -> str:
+    """Keep the file header while rebuilding the schema tables."""
+    match = re.match(r"(?:(?:[ \t]*#.*)?\r?\n|[ \t]*\r?\n)*", content)
+    return match.group(0) if match else ""
+
+
 class Model(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -210,7 +253,7 @@ def read_config(
                     item["icon"] = filename
     # 先验证整份配置，再回写，避免将无效编辑写回磁盘。
     result = Config.model_validate(document.unwrap())
-    normalized = tomlkit.dumps(document)
+    normalized = leading_comments(original) + tomlkit.dumps(format_document(document))
     if normalized != original:
         # 编辑器保存期间不覆盖更新的内容；下一次扫描会重试。
         if path.read_text(encoding="utf-8-sig") != original:
