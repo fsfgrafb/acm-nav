@@ -72,9 +72,55 @@ npm --prefix frontend run build
 
 编辑根目录的 `config.toml`，保存后页面会自动更新。完整示例见 `backend/default.toml`。
 
-- `[appearance]`：站点标题、英文抬头、页面描述。
-- `[[sections]]`：页面区域；`title` 必须唯一。
-- `[[sections.items]]`：链接或公告项。
-- `[admin].ips`：允许显示管理员区域的 IP 地址。
+### 顶层配置
+
+| 区块 | 字段 | 说明 |
+| --- | --- | --- |
+| `[server]` | `host` | 监听地址，默认 `0.0.0.0`。 |
+| `[server]` | `port` | 监听端口，范围 `1`–`65535`，默认 `80`。 |
+| `[appearance]` | `title` | 网站标题，同时用于浏览器标题。 |
+| `[appearance]` | `kicker` | 标题上方的英文小标题。 |
+| `[appearance]` | `description` | 页面描述（HTML meta description）。 |
+| `[admin]` | `ips` | IP 字符串列表；访问者 IP 位于其中时，才显示管理员区域。默认仅 `127.0.0.1`。 |
+
+### 页面区域：`[[sections]]`
+
+每个区域支持以下字段，且 `title` 在整份配置中必须唯一。
+
+| 字段 | 类型／默认值 | 说明 |
+| --- | --- | --- |
+| `title` | 字符串，必填 | 区域标题。 |
+| `width` | 整数，默认 `2` | 区域在一行中占用的宽度分母，范围 `1`–`12`；例如 `width = 1` 占满一行，`width = 2` 占半行。 |
+| `columns` | 整数，默认 `1` | 区域内卡片列数，范围 `1`–`6`。 |
+| `visibility` | `"public"`（默认）或 `"admin"` | `public` 对所有访客显示；`admin` 仅在访问者 IP 命中 `[admin].ips` 时显示。 |
+
+### 区域项目：`[[sections.items]]`
+
+项目可为外部链接或站内公告，由 `type` 决定。
+
+| 字段 | 类型／默认值 | 适用类型与说明 |
+| --- | --- | --- |
+| `name` | 字符串，必填 | 卡片名称。 |
+| `type` | `"link"`（默认）或 `"info"` | `link` 为外部链接；`info` 为点击后弹出的公告。 |
+| `icon` | 文件名，默认 `link.svg` | `frontend/public/icons/services/` 下的图标文件名；可省略 `.svg` 后缀。链接项目未填写时会尝试抓取网站图标，失败则使用 `link.svg`。 |
+| `description` | 字符串，默认空 | 卡片说明；鼠标悬浮时显示。 |
+| `url` | 字符串，默认空 | `type = "link"` 时必填，且必须是完整的 `http://` 或 `https://` 地址。 |
+| `content` | 字符串，默认空 | `type = "info"` 时使用，支持 Markdown。 |
+
+示例：
+
+```toml
+[[sections]]
+title = "内部服务"
+width = 2
+columns = 2
+visibility = "admin"
+
+[[sections.items]]
+name = "运维公告"
+type = "info"
+description = "仅管理员可见"
+content = "# 通知\n\n这里支持 **Markdown**。"
+```
 
 图标源文件放在 `frontend/public/icons/services/`；构建时会复制到 `frontend/static/`，该目录为 Git 忽略的构建产物。
