@@ -1,6 +1,1 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" role="img" aria-label="导航罗盘">
-  <circle cx="32" cy="32" r="25" stroke="#3b82f6" stroke-width="4"/>
-  <path d="M32 12v5M32 47v5M12 32h5M47 32h5" stroke="#3b82f6" stroke-width="4" stroke-linecap="round"/>
-  <path d="m42 22-5 15-15 5 5-15 15-5Z" fill="#3b82f6" stroke="#3b82f6" stroke-linejoin="round"/>
-  <path d="m27 27 10 10" stroke="#fff" stroke-width="2" stroke-linecap="round"/>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" role="img" aria-label="导航罗盘"><circle cx="32" cy="32" r="24" stroke="#3b82f6" stroke-width="4"/><path d="m41 23-6 18-18 6 6-18 18-6Z" fill="#3b82f6"/></svg>
