@@ -1,0 +1,75 @@
+# 编辑此文件生成的 config.toml，保存后页面会自动更新。
+[appearance]
+title = "导航站点"
+kicker = "NAVIGATION"
+description = "一个可直接修改的配置示例"
+
+[[sections]]
+title = "示例"
+width = 1
+columns = 2
+
+[[sections.items]]
+name = "示例链接"
+icon = "link.svg"
+type = "link"
+url = "http://127.0.0.1/"
+description = "示例描述"
+
+[[sections.items]]
+name = "示例公告"
+icon = "link.svg"
+type = "info"
+description = "点击查看 Markdown 语法示例"
+content = """
+# 示例公告
+
+直接编辑本段 `content`，保存后即可更新公告。
+
+## 文本与链接
+
+这是**加粗**、*斜体*、~~删除线~~与 `行内代码`。访问[示例链接](https://example.com)，也可显示图片：
+
+![示例图片](/static/icons/services/link.svg)
+
+---
+
+## 列表
+
+- 无序列表
+  - 嵌套列表
+- 另一项
+
+1. 有序列表
+2. 第二项
+
+- [x] 已完成任务
+- [ ] 待完成任务
+
+## 引用与表格
+
+> 示例引用
+>
+> 引用也可以包含多个段落。
+
+| 字段 | 示例值 |
+| :--- | ---: |
+| 名称 | 示例公告 |
+| 状态 | 已发布 |
+
+## 代码块
+
+```cpp
+// 示例代码块
+#include <iostream>
+
+int main() {
+    std::cout << "Hello, ACM!" << std::endl;
+    return 0;
+}
+```
+
+脚注也可使用。[^note]
+
+[^note]: 这是示例脚注。
+"""

@@ -1,0 +1,164 @@
+/* 默认浅色；深色仅由用户主动切换。 */
+:root {
+  color-scheme: light;
+  --bg: #f3f7fc; --bg-soft: #dce9f9;
+  --surface: rgba(255,255,255,.75); --surface-strong: rgba(255,255,255,.96);
+  --line: rgba(38,75,140,.14); --text: #10213c; --muted: #60708d;
+  --shadow: 0 22px 55px rgba(36,74,138,.14); --ease: cubic-bezier(.4,0,.2,1);
+}
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #060d1a; --bg-soft: #10213e;
+  --surface: rgba(15,28,52,.72); --surface-strong: rgba(19,35,64,.98);
+  --line: rgba(163,193,255,.16); --text: #f5f8ff; --muted: #98a9c7;
+  --shadow: 0 22px 55px rgba(0,0,0,.28);
+}
+* { box-sizing: border-box; }
+html { min-height: 100%; }
+body {
+  min-width: 300px; min-height: 100vh; margin: 0;
+  background: linear-gradient(rgba(119,155,221,.045) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(119,155,221,.045) 1px,transparent 1px),
+    radial-gradient(circle at 70% -15%,var(--bg-soft),var(--bg) 52%);
+  background-size: 44px 44px,44px 44px,auto;
+  color: var(--text); font-family: Inter,"PingFang SC","Microsoft YaHei",system-ui,sans-serif; line-height: 1.5;
+}
+button, a { -webkit-tap-highlight-color: transparent; }
+button { font-family: inherit; }
+.ambient { position: fixed; z-index: -1; width: 420px; height: 420px; border-radius: 50%; filter: blur(105px); opacity: .16; pointer-events: none; }
+.ambient-one { top: 6%; left: -180px; background: #2477ff; }
+.ambient-two { right: 0; bottom: 2%; background: #8e5bff; }
+.page-shell { width: min(1180px,calc(100% - 48px)); margin-inline: auto; }
+main.page-shell { padding-block: 28px 64px; }
+.site-header { display: flex; align-items: center; justify-content: space-between; gap: 20px; min-height: 176px; padding-block: 24px; border-bottom: 1px solid var(--line); }
+.brand { display: flex; align-items: center; gap: 30px; min-width: 0; }
+.brand-mark { display: grid; place-items: center; flex: 0 0 auto; width: 112px; height: 112px; overflow: hidden; border-radius: 50%; background: #fff; }
+.brand-mark img { width: 100%; height: 100%; object-fit: contain; }
+.brand-copy { min-width: 0; }
+.brand-kicker { display: block; color: #5f9fff; font-size: 12px; font-weight: 800; letter-spacing: .18em; }
+h1 { margin: 7px 0 0; font-size: clamp(30px,4vw,48px); line-height: 1.14; letter-spacing: -.045em; overflow-wrap: anywhere; }
+.theme-toggle { display: grid; place-items: center; flex: 0 0 auto; width: 44px; height: 44px; padding: 0; border: 1px solid var(--line); border-radius: 50%; background: var(--surface); box-shadow: 0 8px 22px rgba(0,0,0,.1); cursor: pointer; }
+.theme-toggle img { width: 21px; height: 21px; }
+.theme-toggle { transition: transform 250ms var(--ease),background 250ms var(--ease),box-shadow 250ms var(--ease); }
+.theme-toggle:hover { background: var(--surface-strong); transform: translateY(-2px) scale(1.06); box-shadow: 0 10px 26px rgba(0,0,0,.16); }
+.theme-toggle:active { transform: scale(.96); }
+button:focus-visible, a:focus-visible { outline: 3px solid rgba(95,161,255,.5); outline-offset: 3px; }
+
+/* 用分母计算宽度。保留空位，不拉伸、不居中。 */
+.section-grid { --gap: 22px; display: flex; flex-wrap: wrap; gap: var(--gap); justify-content: flex-start; }
+.admin-sections { margin-top: 22px; }
+.service-section {
+  flex: 0 0 calc((100% + var(--gap)) / var(--width) - var(--gap)); min-width: 0;
+  padding: 26px; border: 1px solid var(--line); border-radius: 26px;
+  background: linear-gradient(145deg,var(--surface),transparent); box-shadow: var(--shadow); backdrop-filter: blur(18px);
+  animation: section-in 560ms cubic-bezier(.22,1,.36,1) var(--enter-delay,0ms) backwards;
+}
+.section-heading { margin-bottom: 20px; }
+.section-heading h2 { margin: 0; font-size: 20px; letter-spacing: -.02em; overflow-wrap: anywhere; }
+.card-list { display: grid; grid-template-columns: repeat(var(--columns),minmax(0,1fr)); gap: 12px; }
+.nav-card {
+  --accent: #4f96ff; position: relative; display: grid; grid-template-columns: 42px minmax(0,1fr);
+  align-items: center; gap: 13px; min-height: 72px; width: 100%; overflow: hidden;
+  padding: 13px 16px 13px 13px; border: 1px solid var(--line); border-radius: 17px;
+  color: var(--text); background: rgba(255,255,255,.035); font: inherit; text-align: left; text-decoration: none; cursor: pointer;
+  animation: card-in 480ms cubic-bezier(.22,1,.36,1) var(--card-delay,0ms) backwards;
+  transform-origin: center;
+  transition: transform 350ms var(--ease),box-shadow 350ms var(--ease),border-color 350ms var(--ease),background 350ms var(--ease);
+}
+.nav-card::before { content: ""; position: absolute; inset: 0; background: radial-gradient(circle at 0 50%,color-mix(in srgb,var(--accent) 16%,transparent),transparent 44%); opacity: .6; }
+.nav-card > * { position: relative; }
+.nav-card:not(:disabled):is(:hover,:focus-visible) { z-index: 2; transform: translateY(-4px) scale(1.025); box-shadow: 0 15px 30px color-mix(in srgb,var(--accent) 18%,transparent); border-color: color-mix(in srgb,var(--accent) 45%,transparent); background: color-mix(in srgb,var(--accent) 7%,var(--surface)); }
+.nav-card:not(:disabled):active { transform: translateY(-1px) scale(1.005); }
+.nav-card:disabled { opacity: .5; cursor: not-allowed; }
+.accent-2 { --accent: #9b71ff; }
+.accent-3 { --accent: #ff8f5a; }
+.accent-4 { --accent: #3dd5a0; }
+.accent-5 { --accent: #ef6f9a; }
+.card-icon { display: grid; place-items: center; width: 42px; height: 42px; overflow: hidden; border-radius: 13px; background: color-mix(in srgb,var(--accent) 14%,transparent); }
+.card-icon img { width: 25px; height: 25px; object-fit: contain; }
+.card-text { display: block; min-width: 0; height: 24px; overflow: hidden; }
+.card-name, .card-description { position: absolute; inset: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; transition: opacity 240ms,transform 240ms; }
+.card-name { font-size: 14px; font-weight: 720; }
+.card-description { color: var(--muted); font-size: 13px; opacity: 0; transform: translateY(18px); }
+.has-description:hover .card-name, .has-description:focus-visible .card-name { opacity: 0; transform: translateY(-18px); }
+.has-description:hover .card-description, .has-description:focus-visible .card-description { opacity: 1; transform: none; }
+
+/* 标题与关闭按钮固定，长公告只滚动内容。 */
+.modal-panel { position: fixed; width: min(650px,calc(100% - 32px)); max-height: min(720px,calc(100dvh - 48px)); padding: 28px; overflow: hidden; border: 1px solid var(--line); border-radius: 25px; color: var(--text); background: var(--surface-strong); box-shadow: 0 30px 90px rgba(0,0,0,.45); }
+.modal-panel[open] { display: flex; flex-direction: column; }
+.modal-panel::backdrop { background: rgba(1,6,16,.68); backdrop-filter: blur(8px); }
+/* 使用独立退场动画，关闭时不会瞬间撤掉原生遮罩。 */
+.modal-panel[open] { animation: dialog-in 340ms cubic-bezier(.22,1,.36,1) both; }
+.modal-panel[open]::backdrop { animation: backdrop-in 340ms var(--ease) both; }
+.modal-panel.is-closing { animation: dialog-out 230ms cubic-bezier(.4,0,1,1) both; }
+.modal-panel.is-closing::backdrop { animation: backdrop-out 230ms var(--ease) both; }
+@keyframes dialog-in { from { opacity: 0; transform: translateY(24px) scale(.94); } to { opacity: 1; transform: none; } }
+@keyframes dialog-out { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(16px) scale(.96); } }
+@keyframes backdrop-in { from { opacity: 0; backdrop-filter: blur(0); } to { opacity: 1; backdrop-filter: blur(8px); } }
+@keyframes backdrop-out { from { opacity: 1; } to { opacity: 0; } }
+@keyframes section-in { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: none; } }
+@keyframes card-in { from { opacity: 0; transform: translateY(16px) scale(.98); } to { opacity: 1; transform: none; } }
+.modal-header { display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-shrink: 0; padding-bottom: 20px; }
+.modal-header h2 { margin: 0; font-size: 26px; overflow-wrap: anywhere; }
+.modal-close { flex: 0 0 auto; min-width: 36px; min-height: 36px; padding: 0 6px; border: 1px solid var(--line); border-radius: 11px; color: var(--text); background: transparent; font-size: 24px; cursor: pointer; }
+.modal-content { min-height: 0; overflow: auto; scrollbar-width: none; color: var(--muted); overflow-wrap: anywhere; }
+.modal-content::-webkit-scrollbar { display: none; }
+.modal-content > :first-child { margin-top: 0; }
+.modal-content h1, .modal-content h2, .modal-content h3 { color: var(--text); }
+.modal-content h1 { font-size: 28px; }
+.modal-content h2 { font-size: 22px; margin: 24px 0 12px; }
+.modal-content a { color: #5f9fff; }
+.modal-content img { max-width: 100%; }
+.modal-content code { padding: .15em .35em; border-radius: 5px; color: var(--text); background: rgba(127,154,204,.14); }
+.code-block { position: relative; margin-block: 1em; }
+.modal-content pre { overflow: auto; margin: 0; padding: 16px; border-radius: 12px; background: rgba(127,154,204,.14); tab-size: 4; }
+.modal-content pre code { display: block; padding: 0; background: transparent; }
+/* 复制按钮悬浮在右侧窄栏，不占顶部空行，也不遮住长代码。 */
+.code-block { padding-right: 76px; border-radius: 12px; background: rgba(127,154,204,.14); }
+.code-block pre { background: transparent; border-radius: 12px 0 0 12px; }
+.code-copy { position: absolute; top: 8px; right: 8px; max-width: 64px; min-width: 48px; min-height: 32px; padding: 4px 9px; border: 1px solid var(--line); border-radius: 9px; color: var(--muted); background: var(--surface-strong); font-size: 12px; cursor: pointer; }
+.modal-close, .code-copy { transition: transform 250ms var(--ease),box-shadow 250ms var(--ease),border-color 250ms var(--ease),background 250ms var(--ease); }
+.modal-close:is(:hover,:focus-visible), .code-copy:is(:hover,:focus-visible) { transform: translateY(-2px) scale(1.08); border-color: rgba(95,161,255,.55); background: var(--surface-strong); box-shadow: 0 7px 18px rgba(36,74,138,.18); }
+.modal-close:active, .code-copy:active { transform: scale(.96); }
+/* 高亮颜色也在热更新样式中，分别适配两种主题。 */
+:root { --code-keyword: #a626a4; --code-string: #28742b; --code-number: #a04b00; --code-title: #185fc3; --code-comment: #6a737d; --code-meta: #9b3b16; }
+html[data-theme="dark"] { --code-keyword: #c792ea; --code-string: #a5d67b; --code-number: #f7b267; --code-title: #82b7ff; --code-comment: #9aabc2; --code-meta: #ffb58b; }
+.hljs-keyword, .hljs-selector-tag, .hljs-literal { color: var(--code-keyword); }
+.hljs-string, .hljs-regexp, .hljs-addition { color: var(--code-string); }
+.hljs-number, .hljs-attr, .hljs-attribute, .hljs-variable { color: var(--code-number); }
+.hljs-title, .hljs-built_in, .hljs-type, .hljs-selector-class { color: var(--code-title); }
+.hljs-comment, .hljs-quote { color: var(--code-comment); font-style: italic; }
+.hljs-meta, .hljs-tag, .hljs-name, .hljs-deletion { color: var(--code-meta); }
+.modal-content table { display: block; max-width: 100%; overflow: auto; border-collapse: collapse; margin-block: 20px; }
+.modal-content th, .modal-content td { padding: 10px 16px; border: 1px solid var(--line); text-align: left; }
+.modal-content blockquote { border-left: 3px solid #5f9fff; margin-inline: 0; padding-left: 16px; }
+body.modal-open { overflow: hidden; }
+.connection-note { text-align: center; color: var(--muted); padding: 24px; }
+
+@media (max-width: 1023px) {
+  .page-shell { width: calc(100% - 32px); }
+  .section-grid { --gap: 16px; }
+  .service-section { padding: 19px; border-radius: 21px; }
+}
+@media (max-width: 767px) {
+  .page-shell { width: calc(100% - 24px); }
+  .site-header { min-height: 150px; padding-block: 24px; gap: 12px; }
+  .brand { gap: 16px; }
+  .brand-mark { width: 68px; height: 68px; }
+  .brand-kicker { font-size: 10px; letter-spacing: .13em; }
+  h1 { font-size: clamp(23px,6.8vw,31px); }
+  .theme-toggle { width: 40px; height: 40px; }
+  .service-section { flex-basis: 100%; }
+  .card-list { grid-template-columns: 1fr; }
+  .modal-panel { padding: 22px; border-radius: 20px; }
+}
+@media (hover: none) {
+  .nav-card:not(:disabled):is(:hover,:focus-visible) { transform: translateY(-1px) scale(1.008); }
+  .card-text { height: auto; }
+  .card-name, .card-description { position: static; display: block; white-space: normal; }
+  .card-description, .has-description:hover .card-name { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; animation-duration: .01ms !important; animation-delay: 0ms !important; }
+  .nav-card:not(:disabled):is(:hover,:focus-visible), .theme-toggle:hover, .modal-close:is(:hover,:focus-visible), .code-copy:is(:hover,:focus-visible) { transform: none; }
+}

@@ -1,0 +1,10 @@
+.venv/
+node_modules/
+/static/
+/frontend/static/
+__pycache__/
+*.pyc
+*.log
+.env
+config.toml
+release/
