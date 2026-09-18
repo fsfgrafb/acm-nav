@@ -1,0 +1,48 @@
+name: Publish release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag, for example v1.0.0"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Build frontend
+        run: |
+          npm --prefix frontend ci
+          npm --prefix frontend run build
+
+      - name: Package release
+        run: |
+          mkdir -p package/acm-nav/frontend
+          cp -R backend package/acm-nav/
+          cp -R frontend/static package/acm-nav/frontend/
+          cp requirements.txt README.md LICENSE package/acm-nav/
+          cd package
+          zip -qr "../acm-nav-${RELEASE_TAG}.zip" acm-nav
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$RELEASE_TAG" "acm-nav-${RELEASE_TAG}.zip" --target "$GITHUB_SHA" --title "$RELEASE_TAG" --generate-notes

@@ -11,6 +11,17 @@ npm --prefix frontend ci
 python build.py
 ```
 
+## GitHub Releases
+
+仓库中的发布工作流会在推送 `v*` 标签时自动构建并创建 GitHub Release，附带部署 ZIP；该流程不使用 `build.py`。
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+也可在 GitHub 仓库的 **Actions** 页面选择 **Publish release**，点击 **Run workflow** 并填写版本标签（例如 `v1.0.0`）。工作流完成后，在仓库的 **Releases** 页面下载 ZIP。
+
 将 `release/acm-nav.zip` 上传到 Linux 服务器。以下以 `/opt/acm-nav` 为部署目录；服务器只需要 Python 3.11+ 和 `python3-venv`：
 
 ```bash
