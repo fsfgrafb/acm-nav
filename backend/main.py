@@ -136,23 +136,72 @@ class LiveSite:
                 self.changed.notify_all()
 
 
+class VisitCounter:
+    """Keep the page-view count in memory and periodically checkpoint it."""
+
+    def __init__(self, path: Path):
+        self.path = path
+        self.count = 0
+
+    def restore(self):
+        try:
+            value = int(self.path.read_text(encoding="utf-8").strip())
+            if value < 0:
+                raise ValueError("访问量不能为负数")
+            self.count = value
+        except FileNotFoundError:
+            pass
+        except (OSError, ValueError) as exc:
+            log.warning("访问量文件读取失败，将从 0 开始：%s", exc)
+
+    def visit(self):
+        self.count += 1
+        return self.count
+
+    def save(self):
+        """Atomically replace the checkpoint so an interrupted write keeps the old one."""
+        temporary = self.path.with_suffix(self.path.suffix + ".tmp")
+        try:
+            with temporary.open("w", encoding="utf-8") as output:
+                output.write(f"{self.count}\n")
+                output.flush()
+                os.fsync(output.fileno())
+            temporary.replace(self.path)
+        except OSError as exc:
+            log.warning("访问量保存失败：%s", exc)
+            with suppress(OSError):
+                temporary.unlink()
+
+    async def checkpoint(self):
+        while True:
+            await asyncio.sleep(60)
+            await asyncio.to_thread(self.save)
+
+
 def create_app(root: Path = ROOT, config: Path | None = None) -> FastAPI:
     config = (
         config
         or Path(os.environ.get("NAVIGATOR_CONFIG", root / "config.toml")).resolve()
     )
     live = LiveSite(root, config)
+    visits = VisitCounter(root / "visit_count.txt")
 
     @asynccontextmanager
     async def lifespan(app):
         ensure_config(config)
+        await asyncio.to_thread(visits.restore)
         live.refresh()
         await live.queue_icon_download()
         watcher = asyncio.create_task(live.watch())
+        checkpoint = asyncio.create_task(visits.checkpoint())
         yield
         watcher.cancel()
+        checkpoint.cancel()
         with suppress(asyncio.CancelledError):
             await watcher
+        with suppress(asyncio.CancelledError):
+            await checkpoint
+        await asyncio.to_thread(visits.save)
         if live.icon_download:
             live.icon_download.cancel()
             with suppress(asyncio.CancelledError):
@@ -160,6 +209,7 @@ def create_app(root: Path = ROOT, config: Path | None = None) -> FastAPI:
 
     app = FastAPI(lifespan=lifespan, docs_url=None, redoc_url=None)
     app.state.live = live
+    app.state.visits = visits
 
     def request_ip(request: Request):
         if not request.client:
@@ -173,7 +223,9 @@ def create_app(root: Path = ROOT, config: Path | None = None) -> FastAPI:
     async def payload(request: Request):
         ip = request_ip(request)
         admin = bool(ip and live.site and ip in live.site["admin"]["ips"])
-        return live.payload(admin, ip)
+        data = live.payload(admin, ip)
+        data["visit_count"] = visits.count
+        return data
 
     @app.get("/api/site")
     async def site(request: Request):
@@ -181,6 +233,8 @@ def create_app(root: Path = ROOT, config: Path | None = None) -> FastAPI:
 
     @app.get("/api/events")
     async def events(request: Request):
+        visits.visit()
+
         async def stream():
             revision = None
             while True:

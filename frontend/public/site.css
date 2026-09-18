@@ -14,6 +14,9 @@ html[data-theme="dark"] {
   --shadow: 0 22px 55px rgba(0,0,0,.28);
 }
 * { box-sizing: border-box; }
+/* 保留滚动能力，同时隐藏各浏览器的滚动条。 */
+* { -ms-overflow-style: none; scrollbar-width: none; }
+*::-webkit-scrollbar { display: none; }
 html { min-height: 100%; }
 body {
   min-width: 300px; min-height: 100vh; margin: 0;
@@ -37,7 +40,8 @@ main.page-shell { padding-block: 28px 64px; }
 .brand-copy { min-width: 0; }
 .brand-kicker { display: block; color: #5f9fff; font-size: 12px; font-weight: 800; letter-spacing: .18em; }
 h1 { margin: 7px 0 0; font-size: clamp(30px,4vw,48px); line-height: 1.14; letter-spacing: -.045em; overflow-wrap: anywhere; }
-.current-ip { display: block; margin-top: 8px; color: var(--subtle); font-family: ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",monospace; font-size: 12px; font-weight: 800; line-height: 1.2; }
+.site-meta { display: flex; gap: 12px; margin-top: 8px; color: var(--subtle); font-family: ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",monospace; font-size: 12px; font-weight: 800; line-height: 1.2; }
+.current-ip, .visit-count { display: block; }
 .theme-toggle { display: grid; place-items: center; flex: 0 0 auto; width: 44px; height: 44px; padding: 0; border: 1px solid var(--line); border-radius: 50%; background: var(--surface); box-shadow: 0 8px 22px rgba(0,0,0,.1); cursor: pointer; }
 .theme-toggle img { width: 21px; height: 21px; }
 .theme-toggle { transition: background 250ms var(--ease),box-shadow 250ms var(--ease); }
@@ -148,7 +152,7 @@ body.modal-open { overflow: hidden; }
   .brand { gap: 16px; }
   .brand-mark { width: 68px; height: 68px; }
   .brand-kicker { font-size: 10px; letter-spacing: .13em; }
-  .current-ip { font-size: 10px; }
+  .site-meta { font-size: 10px; }
   h1 { font-size: clamp(23px,6.8vw,31px); }
   .theme-toggle { width: 40px; height: 40px; }
   .service-section { flex-basis: 100%; }

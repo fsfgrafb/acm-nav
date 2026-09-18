@@ -26,6 +26,17 @@ def static_root(root: Path) -> Path:
     return deployed_static if deployed_static.is_dir() else root / "frontend/dist"
 
 
+def icon_exists(root: Path, icon: object) -> bool:
+    """Return whether a configured service icon resolves to an existing file."""
+    if not isinstance(icon, str) or not icon:
+        return False
+    name = icon.removeprefix("/icons/services/") if icon.startswith("/icons/services/") else icon
+    try:
+        return local_path(static_root(root) / "icons/services", name).is_file()
+    except ValueError:
+        return False
+
+
 class Model(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -185,11 +196,14 @@ def read_config(
             if match:
                 item["url"] = match.group(1)
             # 下载图标会访问网络，只能由后台任务显式触发，不能阻塞启动或热更新。
+            parsed_url = urlsplit(item.get("url", ""))
+            http_url = parsed_url.scheme in {"http", "https"} and bool(parsed_url.hostname)
             if (
                 download_icons
                 and root
-                and "icon" not in item
                 and item.get("type", "link") == "link"
+                and http_url
+                and not icon_exists(root, item.get("icon"))
             ):
                 filename = download_icon(item.get("url", ""), item.get("name", ""), static_root(root) / "icons/services")
                 if filename:

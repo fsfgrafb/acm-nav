@@ -127,6 +127,8 @@ npm --prefix frontend run build
 
 编辑根目录的 `config.toml`，保存后页面会自动更新。完整示例见 `backend/default.toml`。
 
+访问量在访客建立页面连接时递增，先保存在内存中，并每 60 秒写入根目录的 `visit_count.txt`；服务正常停止时也会立即写入。重启服务时会自动读取该文件恢复计数。
+
 ### 顶层配置
 
 | 区块 | 字段 | 说明 |
@@ -157,7 +159,7 @@ npm --prefix frontend run build
 | --- | --- | --- |
 | `name` | 字符串，必填 | 卡片名称。 |
 | `type` | `"link"`（默认）、`"info"` 或 `"resource"` | `link` 为外部链接；`info` 为点击后弹出的公告；`resource` 为打开资源文件。 |
-| `icon` | 文件名，默认 `link.svg` | 简写如 `link.svg` 对应 `static/icons/services/link.svg`；也可写完整网页路径 `/icons/services/link.svg`。链接项目未填写时会先读取网页声明的图标，未声明则请求 `/favicon.ico`；抓取失败则使用 `link.svg`。 |
+| `icon` | 文件名，默认 `link.svg` | 简写如 `link.svg` 对应 `static/icons/services/link.svg`；也可写完整网页路径 `/icons/services/link.svg`。链接项目未填写、或所填图标文件不存在时，会自动读取链接网页声明的图标，未声明则请求 `/favicon.ico`，并将成功抓取的文件名写回 `config.toml`；抓取失败则保留原值。 |
 | `description` | 字符串，默认空 | 卡片说明；鼠标悬浮时显示。 |
 | `url` | 字符串，默认空 | `link` 必填，且必须是完整 HTTP(S) 地址。`resource` 必填；简写如 `a.exe` 对应 `static/resources/a.exe`，也可使用 HTTP(S) 或 `/resources/a.exe`。`info` 可选；填写时必须指向 HTTP(S)、资源文件名或 `/resources/` 下的 `.md`、`.markdown`、`.txt` 文件。 |
 | `content` | 字符串，默认空 | `type = "info"` 时使用，支持 Markdown；若设置了 `url`，则加载该文件内容。 |

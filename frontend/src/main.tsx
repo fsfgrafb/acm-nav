@@ -271,7 +271,10 @@ function App() {
         <div className="brand">
           <span className="brand-mark"><Icon name={siteAssets.logo} revision={revision} fallback={siteAssets.fallback} /></span>
           <div className="brand-copy"><span className="brand-kicker">{appearance.kicker}</span><h1>{appearance.title}</h1>
-            {snapshot.current_ip && <span className="current-ip">{snapshot.current_ip}</span>}
+            <span className="site-meta">
+              <span className="visit-count">访问量：{snapshot.visit_count ?? 0}</span>
+              {snapshot.current_ip && <span className="current-ip">{snapshot.current_ip}</span>}
+            </span>
           </div>
         </div>
         <button className="theme-toggle" aria-label={text[`theme_${theme}`]} title={text[`theme_${theme}`]}
