@@ -56,16 +56,19 @@ sudo systemctl daemon-reload && sudo systemctl enable --now acm-nav && sudo syst
         └── assets/          # Markdown 公告引用的图片
 ```
 
-如需由普通用户维护配置，将其加入服务组并授予配置目录写权限（将 `<用户名>` 替换为实际登录名）：
+如需由普通用户维护配置和静态资源，应让该用户成为 `config.toml` 与 `static/` 的属主。服务仍通过 `acm-nav` 组读取配置、访问图标和资源（将 `<用户名>` 替换为实际登录名）：
 
 ```bash
 sudo usermod -aG acm-nav <用户名>
-sudo chgrp acm-nav /opt/acm-nav /opt/acm-nav/config.toml
-sudo chmod 2775 /opt/acm-nav
+sudo chown <用户名>:acm-nav /opt/acm-nav/config.toml
 sudo chmod 664 /opt/acm-nav/config.toml
+
+sudo chown -R <用户名>:acm-nav /opt/acm-nav/static
+sudo find /opt/acm-nav/static -type d -exec chmod 2775 {} +
+sudo find /opt/acm-nav/static -type f -exec chmod 664 {} +
 ```
 
-该用户重新登录后可直接编辑 `/opt/acm-nav/config.toml`；保存后网站自动热更新，无需重启服务。
+该用户重新登录后可直接编辑 `/opt/acm-nav/config.toml`、用 SFTP 上传静态资源，也可正常设置文件时间戳和权限；保存配置后网站自动热更新，无需重启服务。
 
 ## 更新
 
