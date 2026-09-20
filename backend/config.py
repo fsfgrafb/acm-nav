@@ -21,16 +21,21 @@ def local_path(root: Path, name: str) -> Path:
     return target
 
 
+def frontend_root(root: Path) -> Path:
+    development_build = root / "frontend/dist"
+    return development_build if development_build.is_dir() else root / "frontend"
+
+
 def static_root(root: Path) -> Path:
     deployed_static = root / "static"
-    return deployed_static if deployed_static.is_dir() else root / "frontend/dist"
+    return deployed_static if deployed_static.is_dir() else frontend_root(root)
 
 
 def icon_exists(root: Path, icon: object) -> bool:
     """Return whether a configured service icon resolves to an existing file."""
     if not isinstance(icon, str) or not icon:
         return False
-    name = icon.removeprefix("/icons/services/") if icon.startswith("/icons/services/") else icon
+    name = icon.removeprefix("/icons/services/")
     try:
         return local_path(static_root(root) / "icons/services", name).is_file()
     except ValueError:
@@ -55,10 +60,7 @@ def format_document(document):
 
     sections = tomlkit.aot()
     for section in document.get("sections", []):
-        ordered_section = tomlkit.table()
-        for field in ("title", "visibility", "width", "columns"):
-            if field in section:
-                ordered_section.add(field, section[field])
+        ordered_section = reorder_table(section, ("title", "visibility", "width", "columns"))
         items = tomlkit.aot()
         for item in section.get("items", []):
             items.append(
@@ -187,12 +189,15 @@ class IconLinkParser(HTMLParser):
     def __init__(self):
         super().__init__()
         self.href = None
+        self.base = None
 
     def handle_starttag(self, tag, attrs):
+        attributes = dict(attrs)
+        if tag == "base" and self.base is None and attributes.get("href"):
+            self.base = attributes["href"]
         if tag != "link" or self.href:
             return
-        attributes = dict(attrs)
-        if "icon" in attributes.get("rel", "").lower().split() and attributes.get("href"):
+        if "icon" in (attributes.get("rel") or "").lower().split() and attributes.get("href"):
             self.href = attributes["href"]
 
 
@@ -200,29 +205,57 @@ def download_icon(url: str, name: str, directory: Path) -> str | None:
     if any(char in name for char in '<>:"/\\|?*') or name in {"", ".", ".."}:
         raise ValueError("自动下载图标时，卡片名称不能包含文件名保留字符")
     request = Request(url, headers={"User-Agent": "acm-nav/1.0"})
+    log = logging.getLogger("uvicorn.error")
+    final_url = url
+    parser = IconLinkParser()
     try:
         with urlopen(request, timeout=5) as response:
             page = response.read(512 * 1024)
             content_type = response.headers.get_content_type()
             final_url = response.url
-        parser = IconLinkParser()
         if content_type in {"text/html", "application/xhtml+xml"}:
             parser.feed(page.decode("utf-8", errors="ignore"))
-        icon_url = urljoin(final_url, parser.href) if parser.href else urljoin(final_url, "/favicon.ico")
-        with urlopen(Request(icon_url, headers={"User-Agent": "acm-nav/1.0"}), timeout=5) as response:
-            data = response.read(2 * 1024 * 1024 + 1)
-            content_type = response.headers.get_content_type()
-            final_url = response.url
-        if len(data) > 2 * 1024 * 1024 or not content_type.startswith("image/"):
-            return None
-    except OSError:
-        return None
-    suffix = Path(urlsplit(final_url).path).suffix.lower()
-    suffix = suffix if re.fullmatch(r"\.[a-z0-9]{1,8}", suffix) else {"image/svg+xml": ".svg", "image/png": ".png", "image/jpeg": ".jpg", "image/x-icon": ".ico", "image/vnd.microsoft.icon": ".ico"}.get(content_type, ".ico")
-    filename = name + suffix
-    directory.mkdir(parents=True, exist_ok=True)
-    (directory / filename).write_bytes(data)
-    return filename
+    except (OSError, ValueError) as exc:
+        log.warning("图标网页读取失败 [%s] %s：%s", name, url, exc)
+    candidates = []
+    if parser.href:
+        candidates.append(urljoin(urljoin(final_url, parser.base or ""), parser.href))
+    candidates.append(urljoin(final_url, "/favicon.ico"))
+    for icon_url in dict.fromkeys(candidates):
+        if urlsplit(icon_url).scheme not in {"http", "https"}:
+            continue
+        try:
+            with urlopen(Request(icon_url, headers={"User-Agent": "acm-nav/1.0"}), timeout=5) as response:
+                data = response.read(2 * 1024 * 1024 + 1)
+                content_type = response.headers.get_content_type()
+                image_url = response.url
+            # Cockpit 的 /favicon.ico 可能实际是 PNG，且标记为 text/plain。
+            # 优先识别二进制图片签名，避免依赖错误的 MIME 和扩展名。
+            for signature, detected_type in (
+                (b"\x89PNG\r\n\x1a\n", "image/png"),
+                (b"\x00\x00\x01\x00", "image/x-icon"),
+                (b"\xff\xd8\xff", "image/jpeg"),
+                (b"GIF87a", "image/gif"),
+                (b"GIF89a", "image/gif"),
+            ):
+                if data.startswith(signature):
+                    content_type = detected_type
+                    break
+            if not data or len(data) > 2 * 1024 * 1024 or not content_type.startswith("image/"):
+                raise ValueError(f"无效图标响应：{content_type}，{len(data)} 字节")
+            suffix = {"image/svg+xml": ".svg", "image/png": ".png", "image/jpeg": ".jpg", "image/gif": ".gif", "image/x-icon": ".ico", "image/vnd.microsoft.icon": ".ico"}.get(content_type)
+            if suffix is None:
+                suffix = Path(urlsplit(image_url).path).suffix.lower()
+                suffix = suffix if re.fullmatch(r"\.[a-z0-9]{1,8}", suffix) else ".ico"
+            filename = name + suffix
+            directory.mkdir(parents=True, exist_ok=True)
+            (directory / filename).write_bytes(data)
+        except (OSError, ValueError) as exc:
+            log.warning("图标下载失败 [%s] %s：%s", name, icon_url, exc)
+            continue
+        log.info("图标下载成功 [%s]：%s", name, filename)
+        return filename
+    return None
 
 
 def read_config(
@@ -263,11 +296,9 @@ def read_config(
 
 
 def load_site(path: Path, root: Path) -> dict:
-    data = read_config(path, root).model_dump(exclude={"server"}, by_alias=True)
+    data = read_config(path, root).model_dump(exclude={"server"})
     for section in data["sections"]:
         for item in section["items"]:
-            if item["icon"]:
-                icon = item["icon"].removeprefix("/icons/") if item["icon"].startswith("/icons/") else f"services/{item['icon']}"
-                if not local_path(static_root(root) / "icons", icon).is_file():
-                    item["error"] = "文件不存在"
+            if not icon_exists(root, item["icon"]):
+                item["error"] = "文件不存在"
     return data

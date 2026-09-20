@@ -157,6 +157,8 @@ function App() {
   const trigger = useRef(null);
   const build = useRef(null);
   const site = snapshot?.site;
+  const publicSections = site?.sections.filter(section => section.visibility === 'public') || [];
+  const adminSections = site?.sections.filter(section => section.visibility === 'admin') || [];
   const appearance = site?.appearance;
   const revision = snapshot?.revision || '0';
   const active = site?.sections.find(section => section.title === selected?.section)?.items[selected?.item];
@@ -207,7 +209,7 @@ function App() {
       return;
     }
     const controller = new AbortController();
-    setInfoContent('正在加载…');
+    setInfoContent(text.loading);
     fetch(resourceUrl(active.url), { signal: controller.signal })
       .then(response => {
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -243,11 +245,10 @@ function App() {
     const description = item.error || item.description;
     const Tag = info ? 'button' : 'a';
     return <Tag key={index} style={{ '--card-delay': `${Math.min(index, 6) * 45}ms` }} className={`nav-card accent-${index % 5 + 1} ${description ? 'has-description' : ''}`}
-      {...(Tag === 'a' ? item.type === 'resource' ? {
-        href: resourceUrl(item.url), download: '',
-      } : {
-        href: resourceUrl(item.url), target: '_blank', rel: 'noopener noreferrer',
-      } : { type: 'button' })}
+      {...(info ? { type: 'button' } : {
+        href: resourceUrl(item.url),
+        ...(item.type === 'resource' ? { download: '' } : { target: '_blank', rel: 'noopener noreferrer' }),
+      })}
       aria-label={issue ? `${item.name} (${issue})` : item.name} aria-haspopup={info ? 'dialog' : undefined}
       onClick={info ? event => { trigger.current = event.currentTarget; setSelected({ section: section.title, item: index }); } : undefined}>
       <span className="card-icon"><Icon name={serviceIcon(item.icon)} revision={revision} fallback={siteAssets.fallback} /></span>
@@ -283,9 +284,9 @@ function App() {
         </button>
       </header>
       <main className="page-shell">
-        <div className="section-grid">{site.sections.filter(section => section.visibility === 'public').map(sectionView)}</div>
-        {site.sections.some(section => section.visibility === 'admin') && <div className="section-grid admin-sections">
-          {site.sections.filter(section => section.visibility === 'admin').map(sectionView)}
+        <div className="section-grid">{publicSections.map(sectionView)}</div>
+        {adminSections.length > 0 && <div className="section-grid admin-sections">
+          {adminSections.map(sectionView)}
         </div>}
       </main>
     </>}

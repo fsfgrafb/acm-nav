@@ -1,7 +1,6 @@
 """文件快照 + SSE；访客权限在服务端过滤。"""
 
 import asyncio
-import copy
 import hashlib
 import ipaddress
 import json
@@ -14,21 +13,13 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 
-from .config import Server, ensure_config, load_site, local_path, read_config
+from .config import (
+    Server, ensure_config, frontend_root, load_site, local_path, read_config, static_root,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 log = logging.getLogger("uvicorn.error")
 NO_CACHE = {"Cache-Control": "no-store"}
-
-
-def frontend_root(root: Path) -> Path:
-    development_build = root / "frontend/dist"
-    return development_build if development_build.is_dir() else root / "frontend"
-
-
-def static_root(root: Path) -> Path:
-    deployed_static = root / "static"
-    return deployed_static if deployed_static.is_dir() else frontend_root(root)
 
 
 def fingerprint(paths: list[Path]) -> tuple:
@@ -67,26 +58,17 @@ class LiveSite:
             log.warning("配置更新未应用：%s", exc)
         self.revision = time.time_ns()
         output = frontend_root(self.root)
-        self.build = hashlib.sha256(
-            repr(
-                fingerprint(
-                    [
-                        output / "index.html",
-                        *sorted((output / "assets").rglob("*.js")),
-                    ]
-                )
-            ).encode()
-        ).hexdigest()[:16]
+        files = [output / "index.html", *(output / "assets").rglob("*.js")]
+        self.build = hashlib.sha256(repr(fingerprint(files)).encode()).hexdigest()[:16]
 
-    async def queue_icon_download(self):
+    def queue_icon_download(self):
         """Fetch missing link icons without delaying application startup or reloads."""
         if self.icon_download and not self.icon_download.done():
             return
 
         async def download():
             try:
-                # The normal refresh validates and serves the configuration first.
-                # This pass only materializes optional icons for items that omit one.
+                # 配置先正常加载，缺失图标再由后台补齐。
                 await asyncio.to_thread(read_config, self.config, self.root, True)
             except (ValueError, OSError) as exc:
                 log.warning("图标下载未完成：%s", exc)
@@ -94,31 +76,28 @@ class LiveSite:
         self.icon_download = asyncio.create_task(download())
 
     def payload(self, admin=False, current_ip=None):
-        site = copy.deepcopy(self.site)
-        if site:
-            site.pop("admin")  # 名单始终留在服务端。
-            site["sections"] = [
-                section
-                for section in site["sections"]
+        # 只构造响应外层；不修改配置，也不复制只读的卡片内容。
+        site = None if self.site is None else {
+            "appearance": self.site["appearance"],
+            "sections": [
+                section for section in self.site["sections"]
                 if admin or section["visibility"] == "public"
-            ]
-            # 管理员区域按配置顺序集中在页面底部。
-            site["sections"].sort(key=lambda section: section["visibility"] == "admin")
+            ],
+        }
         return {
             "revision": str(self.revision),
             "site": site,
             "stale": bool(self.error),
             "build": self.build,
-            "is_admin": admin,
             # 只返回当前请求的连接 IP，管理员名单本身不下发。
             "current_ip": current_ip,
         }
 
     async def watch(self):
-        paths = [self.config, frontend_root(self.root), static_root(self.root)]
+        paths = list(dict.fromkeys([self.config, frontend_root(self.root), static_root(self.root)]))
         previous = await asyncio.to_thread(fingerprint, paths)
         self.refresh()
-        await self.queue_icon_download()
+        self.queue_icon_download()
         while True:
             await asyncio.sleep(0.5)
             current = await asyncio.to_thread(fingerprint, paths)
@@ -131,7 +110,7 @@ class LiveSite:
                 continue
             previous = stable
             await asyncio.to_thread(self.refresh)
-            await self.queue_icon_download()
+            self.queue_icon_download()
             async with self.changed:
                 self.changed.notify_all()
 
@@ -156,7 +135,6 @@ class VisitCounter:
 
     def visit(self):
         self.count += 1
-        return self.count
 
     def save(self):
         """Atomically replace the checkpoint so an interrupted write keeps the old one."""
@@ -191,21 +169,19 @@ def create_app(root: Path = ROOT, config: Path | None = None) -> FastAPI:
         ensure_config(config)
         await asyncio.to_thread(visits.restore)
         live.refresh()
-        await live.queue_icon_download()
+        live.queue_icon_download()
         watcher = asyncio.create_task(live.watch())
         checkpoint = asyncio.create_task(visits.checkpoint())
-        yield
-        watcher.cancel()
-        checkpoint.cancel()
-        with suppress(asyncio.CancelledError):
-            await watcher
-        with suppress(asyncio.CancelledError):
-            await checkpoint
-        await asyncio.to_thread(visits.save)
-        if live.icon_download:
-            live.icon_download.cancel()
-            with suppress(asyncio.CancelledError):
-                await live.icon_download
+        try:
+            yield
+        finally:
+            tasks = [watcher, checkpoint]
+            if live.icon_download:
+                tasks.append(live.icon_download)
+            for task in tasks:
+                task.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
+            await asyncio.to_thread(visits.save)
 
     app = FastAPI(lifespan=lifespan, docs_url=None, redoc_url=None)
     app.state.live = live
@@ -220,7 +196,7 @@ def create_app(root: Path = ROOT, config: Path | None = None) -> FastAPI:
         except ValueError:
             return None
 
-    async def payload(request: Request):
+    def payload(request: Request):
         ip = request_ip(request)
         admin = bool(ip and live.site and ip in live.site["admin"]["ips"])
         data = live.payload(admin, ip)
@@ -229,7 +205,7 @@ def create_app(root: Path = ROOT, config: Path | None = None) -> FastAPI:
 
     @app.get("/api/site")
     async def site(request: Request):
-        return JSONResponse(await payload(request), headers=NO_CACHE)
+        return JSONResponse(payload(request), headers=NO_CACHE)
 
     @app.get("/api/events")
     async def events(request: Request):
@@ -247,7 +223,7 @@ def create_app(root: Path = ROOT, config: Path | None = None) -> FastAPI:
                 # 心跳时也重新检查权限，名单移除无需重新打开网页。
                 yield (
                     "data: "
-                    + json.dumps(await payload(request), ensure_ascii=False)
+                    + json.dumps(payload(request), ensure_ascii=False)
                     + "\n\n"
                 )
 
