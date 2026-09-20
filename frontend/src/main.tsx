@@ -259,7 +259,7 @@ function App() {
   function sectionView(section, index) {
     const headingId = `section-${index}`;
     return <section key={section.title} className="service-section" style={{ '--width': section.width, '--columns': section.columns, '--enter-delay': `${Math.min(index, 6) * 70}ms` }} aria-labelledby={headingId}>
-      <div className="section-heading"><h2 id={headingId}>{section.title}</h2></div>
+      <div className="section-heading"><h2 id={headingId} title={section.title}>{section.title}</h2></div>
       <div className="card-list">{section.items.map((item, index) => card(item, index, section))}</div>
     </section>;
   }
@@ -294,7 +294,7 @@ function App() {
     <dialog ref={dialog} className="modal-panel" aria-labelledby="modal-title" onCancel={event => { event.preventDefault(); close(); }}
       onAnimationEnd={event => { if (event.target === dialog.current && event.animationName === 'dialog-out' && closing.current) finishClose(); }}
       onClick={event => { if (event.target === dialog.current) { const r = dialog.current.getBoundingClientRect(); if (event.clientX < r.left || event.clientX > r.right || event.clientY < r.top || event.clientY > r.bottom) close(); } }}>
-      <div className="modal-header"><h2 id="modal-title">{active?.name}</h2>
+      <div className="modal-header"><h2 id="modal-title" title={active?.name}>{active?.name}</h2>
         <button className="modal-close" type="button" onClick={close} aria-label={text.close_label} /></div>
       <div className="modal-content" tabIndex={0}><Markdown key={`${selected?.section}-${selected?.item}-${infoContent}`} content={infoContent} revision={revision} /></div>
     </dialog>
