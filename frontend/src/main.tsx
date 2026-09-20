@@ -34,7 +34,6 @@ const text = {
   copy: '复制',
   copied: '已复制',
   copy_failed: '复制失败，请手动选择',
-  loading: '正在加载…',
   offline: '连接暂时中断，正在重连…',
   unavailable: '站点配置暂不可用，修正后将自动恢复。',
 };
@@ -128,7 +127,9 @@ function CodeBlock({ children }) {
     }
   }
   return <div className="code-block"><pre ref={pre}>{children}</pre>
-    <button className="code-copy" onClick={copy} aria-live="polite">{text[message]}</button></div>;
+    <button type="button" className={`code-copy ${message === 'copied' ? 'is-copied' : ''}`} onClick={copy}
+      aria-label={text[message]} title={text[message]}><span className="copy-icon" aria-hidden="true" /></button>
+    <span className="sr-only" role="status">{message === 'copy' ? '' : text[message]}</span></div>;
 }
 
 function Markdown({ content, revision }) {
@@ -146,7 +147,10 @@ function Icon({ name, revision, fallback }) {
 }
 
 function App() {
-  const [snapshot, setSnapshot] = useState(null);
+  const [snapshot, setSnapshot] = useState(() => {
+    const initial = document.getElementById('site-snapshot');
+    return initial ? JSON.parse(initial.textContent) : null;
+  });
   const [offline, setOffline] = useState(false);
   const [theme, setTheme] = useState(() => {
     try { return localStorage.getItem('navigator-theme') === 'dark' ? 'dark' : 'light'; }
@@ -158,7 +162,7 @@ function App() {
   const closing = useRef(false);
   const closeTimer = useRef(null);
   const trigger = useRef(null);
-  const build = useRef(null);
+  const build = useRef(snapshot?.build ?? null);
   const site = snapshot?.site;
   const publicSections = site?.sections.filter(section => section.visibility === 'public') || [];
   const adminSections = site?.sections.filter(section => section.visibility === 'admin') || [];
@@ -212,7 +216,7 @@ function App() {
       return;
     }
     const controller = new AbortController();
-    setInfoContent(text.loading);
+    setInfoContent('');
     fetch(resourceUrl(active.url), { signal: controller.signal })
       .then(response => {
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -247,7 +251,7 @@ function App() {
     const issue = item.error || '';
     const description = item.error || item.description;
     const Tag = info ? 'button' : 'a';
-    return <Tag key={index} style={{ '--card-delay': `${Math.min(index, 6) * 45}ms` }} className={`nav-card accent-${index % 5 + 1} ${description ? 'has-description' : ''}`}
+    return <Tag key={index} style={{ '--card-delay': `${index * 80}ms` }} className={`nav-card accent-${index % 5 + 1} ${description ? 'has-description' : ''}`}
       {...(info ? { type: 'button' } : {
         href: resourceUrl(item.url),
         ...(item.type === 'resource' ? { download: '' } : { target: '_blank', rel: 'noopener noreferrer' }),
@@ -262,7 +266,7 @@ function App() {
 
   function sectionView(section, index) {
     const headingId = `section-${index}`;
-    return <section key={section.title} className="service-section" style={{ '--width': section.width, '--columns': section.columns, '--enter-delay': `${Math.min(index, 6) * 70}ms` }} aria-labelledby={headingId}>
+    return <section key={section.title} className="service-section" style={{ '--width': section.width, '--columns': section.columns, '--enter-delay': `${index * 120}ms` }} aria-labelledby={headingId}>
       <div className="section-heading"><h2 id={headingId} title={section.title}>{section.title}</h2></div>
       <div className="card-list">{section.items.map((item, index) => card(item, index, section))}</div>
     </section>;
@@ -289,11 +293,11 @@ function App() {
       <main className="page-shell">
         <div className="section-grid">{publicSections.map(sectionView)}</div>
         {adminSections.length > 0 && <div className="section-grid admin-sections">
-          {adminSections.map(sectionView)}
+          {adminSections.map((section, index) => sectionView(section, publicSections.length + index))}
         </div>}
       </main>
     </>}
-    {(!site || offline) && <p className="connection-note" role="status">{offline ? text.offline : snapshot?.stale ? text.unavailable : text.loading}</p>}
+    {(offline || (!site && snapshot?.stale)) && <p className="connection-note" role="status">{offline ? text.offline : text.unavailable}</p>}
     {/* 原生 dialog 保留焦点约束，内容区可滚动但不显示滚动条。 */}
     <dialog ref={dialog} className="modal-panel" aria-labelledby="modal-title" onCancel={event => { event.preventDefault(); close(); }}
       onAnimationEnd={event => { if (event.target === dialog.current && event.animationName === 'dialog-out' && closing.current) finishClose(); }}

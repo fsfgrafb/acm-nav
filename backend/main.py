@@ -2,6 +2,7 @@
 
 import asyncio
 import hashlib
+import html
 import ipaddress
 import json
 import logging
@@ -11,7 +12,7 @@ from contextlib import asynccontextmanager, suppress
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
 
 from .config import (
     Server, ensure_config, frontend_root, load_site, local_path, read_config, static_root,
@@ -20,6 +21,39 @@ from .config import (
 ROOT = Path(__file__).resolve().parents[1]
 log = logging.getLogger("uvicorn.error")
 NO_CACHE = {"Cache-Control": "no-store"}
+
+
+def initial_document(template: str, data: dict) -> str:
+    """首屏标题直接随 HTML 返回，React 接管后继续使用同一份请求快照。"""
+    site = data.get("site")
+    header = ""
+    if site:
+        appearance = {key: html.escape(value, quote=True) for key, value in site["appearance"].items()}
+        revision = html.escape(data["revision"], quote=True)
+        ip = html.escape(data.get("current_ip") or "", quote=True)
+        header = f'''<header class="site-header page-shell">
+          <div class="brand">
+            <span class="brand-mark"><img src="/icons/site/logo.svg?v={revision}" alt="" decoding="async"></span>
+            <div class="brand-copy"><span class="brand-kicker">{appearance["kicker"]}</span><h1>{appearance["title"]}</h1>
+              <span class="site-meta"><span class="visit-count">访问量：{data["visit_count"]}</span>{f'<span class="current-ip">{ip}</span>' if ip else ''}</span>
+            </div>
+          </div>
+          <button class="theme-toggle" aria-label="切换为深色模式" title="切换为深色模式">
+            <img src="/icons/site/sun.svg?v={revision}" alt="" decoding="async">
+          </button>
+        </header>'''
+        template = template.replace('<title></title>', f'<title>{appearance["title"]}</title>')
+        template = template.replace('name="description" content=""', f'name="description" content="{appearance["description"]}"')
+        template = template.replace('<link rel="icon" />', f'<link rel="icon" href="/icons/site/favicon.svg?v={revision}" />')
+    # script 元素内的 JSON 必须转义 <，防止公告中的 </script> 提前结束标签。
+    snapshot = json.dumps(data, ensure_ascii=False).replace("<", "\\u003c")
+    initial = f'''<div id="root"><div class="ambient ambient-one" aria-hidden="true"></div><div class="ambient ambient-two" aria-hidden="true"></div>{header}</div>
+    <script id="site-snapshot" type="application/json">{snapshot}</script>
+    <script>if (document.documentElement.dataset.theme === 'dark') {{
+      const button = document.querySelector('.theme-toggle');
+      if (button) {{ button.title = button.ariaLabel = '切换为浅色模式'; button.querySelector('img').src = '/icons/site/moon.svg?v={data['revision']}'; }}
+    }}</script>'''
+    return template.replace('<div id="root"></div>', initial)
 
 
 def fingerprint(paths: list[Path]) -> tuple:
@@ -261,8 +295,12 @@ def create_app(root: Path = ROOT, config: Path | None = None) -> FastAPI:
         return file(frontend_root(root) / "assets", name)
 
     @app.get("/")
-    async def index():
-        return file(frontend_root(root), "index.html")
+    async def index(request: Request):
+        path = frontend_root(root) / "index.html"
+        if not path.is_file():
+            raise HTTPException(404)
+        template = await asyncio.to_thread(path.read_text, encoding="utf-8")
+        return HTMLResponse(initial_document(template, payload(request)), headers=NO_CACHE)
 
     return app
 
