@@ -38,7 +38,27 @@ const text = {
   unavailable: '站点配置暂不可用，修正后将自动恢复。',
 };
 const RevisionContext = React.createContext('0');
+const CodeBlockContext = React.createContext(false);
 const highlighter = createLowlight({ c, cpp, python, bash, javascript, typescript, json, css, xml, yaml, ini });
+
+function flattenTokens(nodes, classes = []) {
+  return nodes.flatMap(node => {
+    if (node.type === 'text') return [{ value: node.value, classes }];
+    return flattenTokens(node.children, [...classes, ...(node.properties?.className || [])]);
+  });
+}
+
+function highlightedLines(source, language) {
+  const tokens = !language || !highlighter.registered(language)
+    ? [{ value: source, classes: [] }]
+    : flattenTokens(highlighter.highlight(language, source).children);
+  const lines = [[]];
+  tokens.forEach(({ value, classes }) => value.split(/(\r?\n)/).forEach(part => {
+    if (/^\r?\n$/.test(part)) lines.push([]);
+    else if (part) lines.at(-1).push({ value: part, classes });
+  }));
+  return lines;
+}
 
 function renderTokens(nodes) {
   return nodes.map((node, index) => node.type === 'text' ? node.value :
@@ -46,10 +66,15 @@ function renderTokens(nodes) {
 }
 
 function HighlightedCode({ className, children }) {
+  const isBlock = React.useContext(CodeBlockContext);
   const source = String(children ?? '');
   const language = /language-([^\s]+)/.exec(className || '')?.[1]?.toLowerCase();
   const tokens = React.useMemo(() => !language || !highlighter.registered(language)
     ? source : renderTokens(highlighter.highlight(language, source).children), [language, source]);
+  const lines = React.useMemo(() => isBlock ? highlightedLines(source, language) : null, [isBlock, language, source]);
+  if (lines) return <code className={className}>{lines.map((line, lineIndex) =>
+    <span className="code-line" key={lineIndex}><span className="code-line-content">{line.map(({ value, classes }, tokenIndex) =>
+      classes.length ? <span key={tokenIndex} className={classes.join(' ')}>{value}</span> : value)}</span></span>)}</code>;
   return <code className={className}>{tokens}</code>;
 }
 
@@ -126,17 +151,23 @@ function CodeBlock({ children }) {
       setMessage('copy_failed');
     }
   }
-  return <div className="code-block"><pre ref={pre}>{children}</pre>
+  return <div className="code-block"><pre ref={pre}><CodeBlockContext.Provider value>{children}</CodeBlockContext.Provider></pre>
     <button type="button" className={`code-copy ${message === 'copied' ? 'is-copied' : ''}`} onClick={copy}
       aria-label={text[message]} title={text[message]}><span className="copy-icon" aria-hidden="true" /></button>
     <span className="sr-only" role="status">{message === 'copy' ? '' : text[message]}</span></div>;
+}
+
+function preserveCodeEscapes(content) {
+  // TOML 的基本字符串会将 '\\n' 解析为换行；在围栏代码的单、双引号中将其还原为转义字符。
+  return content.replace(/(^|\r?\n)((`{3,}|~{3,})[^\r\n]*\r?\n)([\s\S]*?)\r?\n\3(?=\r?\n|$)/g,
+    (_, boundary, opening, fence, body) => `${boundary}${opening}${body.replace(/(['"])\r?\n\1/g, '$1\\n$1')}\n${fence}`);
 }
 
 function Markdown({ content, revision }) {
   return <RevisionContext.Provider value={revision}><ReactMarkdown remarkPlugins={[remarkGfm]} components={{
     pre: CodeBlock, code: HighlightedCode, img: MarkdownImage,
     a: MarkdownLink,
-  }}>{normalizeAnnouncementImages(content)}</ReactMarkdown></RevisionContext.Provider>;
+  }}>{normalizeAnnouncementImages(preserveCodeEscapes(content))}</ReactMarkdown></RevisionContext.Provider>;
 }
 
 function Icon({ name, revision, fallback }) {

@@ -68,6 +68,7 @@ content = """
 #include <iostream>
 
 int main() {
+    const char newline = '\n';
     std::cout << "Hello, ACM!" << std::endl;
     return 0;
 }

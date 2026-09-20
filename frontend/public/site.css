@@ -117,11 +117,14 @@ button:focus-visible, a:focus-visible { outline: 3px solid rgba(95,161,255,.5); 
 .modal-content img { max-width: 100%; }
 .modal-content code { padding: .15em .35em; border-radius: 5px; color: var(--text); background: rgba(127,154,204,.14); }
 .code-block { position: relative; margin-block: 1em; }
-.modal-content pre { overflow: auto; margin: 0; padding: 16px; border-radius: 12px; background: rgba(127,154,204,.14); tab-size: 4; }
-.modal-content pre code { display: block; padding: 0; background: transparent; }
+.modal-content pre { overflow: hidden; margin: 0; padding: 10px 0; border-radius: 12px; background: rgba(127,154,204,.14); tab-size: 4; }
+.modal-content pre code { display: block; padding: 0; background: transparent; counter-reset: code-line; }
 /* 图标覆盖在右上角，不挤占代码布局；键盘聚焦和触屏同样可用。 */
-.modal-content code { font-family: Consolas,"Microsoft YaHei","Segoe UI Emoji","Liberation Mono",monospace; font-size: 15px; font-weight: 600; }
+.modal-content code { font-family: Consolas,"Microsoft YaHei","Segoe UI Emoji","Liberation Mono",monospace; font-size: 15px; font-weight: 400; }
 .modal-content pre code { line-height: 1.6; }
+.code-line { display: grid; grid-template-columns: minmax(2.25em,max-content) minmax(0,1fr); gap: 14px; padding: 0 16px; counter-increment: code-line; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; }
+.code-line::before { color: var(--subtle); content: counter(code-line); font-variant-numeric: tabular-nums; text-align: right; user-select: none; }
+.code-line-content { min-width: 0; }
 .code-copy { position: absolute; top: 8px; right: 8px; display: grid; place-items: center; width: 34px; height: 34px; padding: 0; border: 1px solid var(--line); border-radius: 9px; color: var(--muted); background: var(--surface-strong); cursor: pointer; opacity: 0; pointer-events: none; }
 .code-block:hover .code-copy, .code-copy:focus-visible { opacity: 1; pointer-events: auto; }
 .copy-icon { position: relative; width: 18px; height: 18px; }
@@ -137,10 +140,11 @@ button:focus-visible, a:focus-visible { outline: 3px solid rgba(95,161,255,.5); 
 /* 高亮颜色也在热更新样式中，分别适配两种主题。 */
 :root { --code-keyword: #a626a4; --code-string: #28742b; --code-number: #a04b00; --code-title: #185fc3; --code-comment: #6a737d; --code-meta: #9b3b16; }
 html[data-theme="dark"] { --code-keyword: #c792ea; --code-string: #a5d67b; --code-number: #f7b267; --code-title: #82b7ff; --code-comment: #9aabc2; --code-meta: #ffb58b; }
-.hljs-keyword, .hljs-selector-tag, .hljs-literal { color: var(--code-keyword); }
+.hljs-keyword, .hljs-selector-tag, .hljs-literal { color: var(--code-keyword); font-weight: 700; }
 .hljs-string, .hljs-regexp, .hljs-addition { color: var(--code-string); }
 .hljs-number, .hljs-attr, .hljs-attribute, .hljs-variable { color: var(--code-number); }
 .hljs-title, .hljs-built_in, .hljs-type, .hljs-selector-class { color: var(--code-title); }
+.hljs-type { font-weight: 700; }
 .hljs-comment, .hljs-quote { color: var(--code-comment); font-style: italic; }
 .hljs-meta, .hljs-tag, .hljs-name, .hljs-deletion { color: var(--code-meta); }
 .modal-content table { display: block; max-width: 100%; overflow: auto; border-collapse: collapse; margin-block: 20px; }
