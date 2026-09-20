@@ -7,7 +7,7 @@ TOML 驱动的 ACM 集训队导航页，支持链接、Markdown 公告、资源�
 Linux 服务器需要 Python 3.11+。以下以 `/opt/acm-nav` 为安装目录，服务使用当前登录用户运行；更换目录时同步修改命令和 systemd 配置。
 
 ```bash
-VERSION=v1.0.15
+VERSION=v1.0.16
 sudo apt install python3 python3-venv unzip curl
 curl -fLO "https://github.com/fsfgrafb/acm-nav/releases/download/$VERSION/acm-nav-$VERSION.zip"
 sudo mkdir -p /opt/acm-nav
@@ -50,7 +50,7 @@ sudo systemctl status acm-nav --no-pager
 
 ```bash
 set -e
-VERSION=v1.0.15
+VERSION=v1.0.16
 APP_DIR=/opt/acm-nav
 curl -fLO "https://github.com/fsfgrafb/acm-nav/releases/download/$VERSION/acm-nav-$VERSION.zip"
 unzip -tq "acm-nav-$VERSION.zip"
@@ -87,7 +87,7 @@ sudo systemctl status acm-nav --no-pager
 | --- | --- | --- |
 | `name` | 必填 | 卡片名称。 |
 | `type` | `"link"` | `link` 外部链接、`info` 公告、`resource` 下载资源。 |
-| `icon` | `"link.svg"` | 图标文件名或 `/icons/services/` 下的路径。 |
+| `icon` | `info` 为 `"info.svg"`，其余为 `"link.svg"` | 图标文件名或 `/icons/services/` 下的路径；公告图标文件不存在时自动补为 `info.svg`。 |
 | `description` | 空 | 卡片说明，悬浮或触屏时显示。 |
 | `url` | 空 | `link` 必填 HTTP(S) 地址；`resource` 必填地址或资源文件名；`info` 可选 `.md`、`.markdown`、`.txt` 文件地址。 |
 | `content` | 空 | 公告 Markdown 内容；填写 `url` 时优先读取文件。 |

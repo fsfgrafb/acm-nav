@@ -289,7 +289,7 @@ function App() {
       })}
       aria-label={issue ? `${item.name} (${issue})` : item.name} aria-haspopup={info ? 'dialog' : undefined}
       onClick={info ? event => { trigger.current = event.currentTarget; setSelected({ section: section.title, item: index }); } : undefined}>
-      <span className="card-icon"><Icon name={serviceIcon(item.icon)} revision={revision} fallback={siteAssets.fallback} /></span>
+      <span className="card-icon"><Icon name={serviceIcon(item.icon)} revision={revision} fallback={info ? '/icons/services/info.svg' : siteAssets.fallback} /></span>
       <span className="card-text"><span className="card-name">{item.name}{issue && ` · ${issue}`}</span>
         <span className="card-description">{description}</span></span>
     </Tag>;

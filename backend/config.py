@@ -117,6 +117,13 @@ class Item(Model):
     url: str = ""
     content: str = ""
 
+    @model_validator(mode="before")
+    @classmethod
+    def default_info_icon(cls, values):
+        if isinstance(values, dict) and values.get("type") == "info" and not values.get("icon"):
+            return {**values, "icon": "info.svg"}
+        return values
+
     @model_validator(mode="after")
     def check_content(self):
         parsed = urlsplit(self.url)
@@ -286,6 +293,12 @@ def read_config(
                     item["icon"] = filename
     # 先验证整份配置，再回写，避免将无效编辑写回磁盘。
     result = Config.model_validate(document.unwrap())
+    for section, validated_section in zip(document.get("sections", []), result.sections):
+        for item, validated_item in zip(section.get("items", []), validated_section.items):
+            if validated_item.type == "info" and (
+                not item.get("icon") or (root and not icon_exists(root, validated_item.icon))
+            ):
+                item["icon"] = validated_item.icon = "info.svg"
     normalized = leading_comments(original) + tomlkit.dumps(format_document(document))
     if normalized != original:
         # 编辑器保存期间不覆盖更新的内容；下一次扫描会重试。
