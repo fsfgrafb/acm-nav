@@ -52,7 +52,7 @@ button:focus-visible, a:focus-visible { outline: 3px solid rgba(95,161,255,.5); 
 .section-grid { --gap: 22px; display: flex; flex-wrap: wrap; gap: var(--gap); justify-content: flex-start; }
 .admin-sections { margin-top: 22px; }
 .service-section {
-  flex: 0 0 max(min(100%,260px),calc((100% + var(--gap)) / var(--width) - var(--gap))); min-width: 0;
+  flex: 0 0 calc((100% + var(--gap)) / var(--width) - var(--gap)); min-width: 0;
   padding: 26px; border: 1px solid var(--line); border-radius: 26px;
   background: linear-gradient(145deg,var(--surface),transparent); box-shadow: var(--shadow); backdrop-filter: blur(18px);
   animation: section-in 560ms cubic-bezier(.22,1,.36,1) var(--enter-delay,0ms) backwards;

@@ -59,13 +59,12 @@ unzip -tq "acm-nav-$VERSION.zip"
 sudo systemctl stop acm-nav
 cp -a "$APP_DIR/config.toml" "$APP_DIR/config.toml.bak"
 cp -a "$APP_DIR/static" "$APP_DIR/static.backup-$(date +%Y%m%d-%H%M%S)"
+rm -rf -- "$APP_DIR/frontend/assets"
 unzip -o "acm-nav-$VERSION.zip" -d "$APP_DIR"
 "$APP_DIR/.venv/bin/pip" install -r "$APP_DIR/requirements.txt"
 sudo systemctl start acm-nav
 sudo systemctl status acm-nav --no-pager
 ```
-
-查看日志：`sudo journalctl -u acm-nav -n 50 --no-pager`。
 
 ## 配置
 
@@ -106,10 +105,7 @@ static/
 ├── icons/services/    # icon = "a.svg" 对应这里的 a.svg
 ├── icons/site/        # Logo、主题按钮和 favicon
 └── resources/         # url = "a.md" 对应这里的 a.md
-    └── assets/        # 公告中 ./assets/ 引用的图片
 ```
-
-访问量在 SSE 连接建立时递增，每 60 秒及正常停止时保存到根目录 `visit_count.txt`，重启后恢复。
 
 ## 开发
 

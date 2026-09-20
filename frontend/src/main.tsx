@@ -14,6 +14,9 @@ import css from 'highlight.js/lib/languages/css';
 import xml from 'highlight.js/lib/languages/xml';
 import yaml from 'highlight.js/lib/languages/yaml';
 import ini from 'highlight.js/lib/languages/ini';
+import version from './version.txt?raw';
+
+console.log(`ACM Nav ${version.trim()}`);
 
 const encodedPath = name => name.split('/').map(encodeURIComponent).join('/');
 const iconUrl = (name, revision) => `${name.startsWith('/icons/') ? encodedPath(name) : `/icons/${encodedPath(name)}`}?v=${revision}`;

@@ -30,6 +30,7 @@ jobs:
 
       - name: Build frontend
         run: |
+          printf '%s\n' "$RELEASE_TAG" > frontend/src/version.txt
           npm --prefix frontend ci
           npm --prefix frontend run build
 
@@ -41,6 +42,7 @@ jobs:
           cp -R frontend/dist/icons frontend/dist/resources package/acm-nav/static/
           rm -rf package/acm-nav/frontend/icons package/acm-nav/frontend/resources
           cp requirements.txt README.md LICENSE package/acm-nav/
+          cp frontend/src/version.txt package/acm-nav/VERSION
           cd package/acm-nav
           zip -qr "../../acm-nav-${RELEASE_TAG}.zip" .
 
