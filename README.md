@@ -7,7 +7,7 @@ TOML 驱动的 ACM 集训队导航页，支持链接、Markdown 公告、资源�
 Linux 服务器需要 Python 3.11+。以下以 `/opt/acm-nav` 为安装目录，服务使用当前登录用户运行；更换目录时同步修改命令和 systemd 配置。
 
 ```bash
-VERSION=v1.0.13
+VERSION=v1.0.14
 sudo apt install python3 python3-venv unzip curl
 curl -fLO "https://github.com/fsfgrafb/acm-nav/releases/download/$VERSION/acm-nav-$VERSION.zip"
 sudo mkdir -p /opt/acm-nav
@@ -50,7 +50,7 @@ sudo systemctl status acm-nav --no-pager
 
 ```bash
 set -e
-VERSION=v1.0.13
+VERSION=v1.0.14
 APP_DIR=/opt/acm-nav
 curl -fLO "https://github.com/fsfgrafb/acm-nav/releases/download/$VERSION/acm-nav-$VERSION.zip"
 unzip -tq "acm-nav-$VERSION.zip"

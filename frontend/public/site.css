@@ -128,12 +128,12 @@ button:focus-visible, a:focus-visible { outline: 3px solid rgba(95,161,255,.5); 
 .code-copy { position: absolute; top: 8px; right: 8px; display: grid; place-items: center; width: 34px; height: 34px; padding: 0; border: 1px solid var(--line); border-radius: 9px; color: var(--muted); background: var(--surface-strong); cursor: pointer; opacity: 0; pointer-events: none; }
 .code-block:hover .code-copy, .code-copy:focus-visible { opacity: 1; pointer-events: auto; }
 .copy-icon { position: relative; width: 18px; height: 18px; }
-.copy-icon::before, .copy-icon::after { content: ""; position: absolute; width: 11px; height: 12px; border: 2px solid currentColor; border-radius: 2px; }
+.copy-icon::before, .copy-icon::after { box-sizing: border-box; content: ""; position: absolute; width: 11px; height: 12px; border: 2px solid currentColor; border-radius: 2px; }
 .copy-icon::before { left: 1px; top: 1px; }
 .copy-icon::after { left: 6px; top: 5px; background: var(--surface-strong); }
 .code-copy.is-copied { color: #22a568; border-color: currentColor; }
 .is-copied .copy-icon::before { display: none; }
-.is-copied .copy-icon::after { left: 5px; top: 1px; width: 7px; height: 13px; border-width: 0 2px 2px 0; border-radius: 0; background: transparent; transform: rotate(45deg); }
+.is-copied .copy-icon::after { left: 5.5px; top: 2.5px; width: 7px; height: 13px; border-width: 0 2px 2px 0; border-radius: 0; background: transparent; transform: rotate(45deg); }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
 .modal-close, .code-copy { transition: opacity 200ms var(--ease),color 200ms var(--ease),box-shadow 250ms var(--ease),border-color 250ms var(--ease),background 250ms var(--ease); }
 .modal-close:is(:hover,:focus-visible), .code-copy:is(:hover,:focus-visible) { border-color: rgba(95,161,255,.55); background: var(--surface-strong); box-shadow: 0 7px 18px rgba(95,161,255,.28); }
