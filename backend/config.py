@@ -4,6 +4,7 @@ import ipaddress
 import logging
 import re
 import tomlkit
+from concurrent.futures import ThreadPoolExecutor
 from html.parser import HTMLParser
 from pathlib import Path
 from typing import Literal
@@ -31,17 +32,6 @@ def static_root(root: Path) -> Path:
     return deployed_static if deployed_static.is_dir() else frontend_root(root)
 
 
-def icon_exists(root: Path, icon: object) -> bool:
-    """Return whether a configured service icon resolves to an existing file."""
-    if not isinstance(icon, str) or not icon:
-        return False
-    name = icon.removeprefix("/icons/services/")
-    try:
-        return local_path(static_root(root) / "icons/services", name).is_file()
-    except ValueError:
-        return False
-
-
 def reorder_table(table, fields: tuple[str, ...]):
     """Create a TOML table with its known fields in a stable order."""
     ordered = tomlkit.table()
@@ -65,7 +55,7 @@ def format_document(document):
         for item in section.get("items", []):
             items.append(
                 reorder_table(
-                    item, ("name", "type", "url", "icon", "description", "content")
+                    item, ("name", "type", "url", "uri", "description", "content")
                 )
             )
         if items:
@@ -111,7 +101,7 @@ class Admin(Model):
 
 class Item(Model):
     name: str = Field(min_length=1)
-    icon: str = "link.svg"
+    uri: str = ""
     description: str = ""
     type: Literal["link", "info", "resource"] = "link"
     url: str = ""
@@ -119,9 +109,13 @@ class Item(Model):
 
     @model_validator(mode="before")
     @classmethod
-    def default_info_icon(cls, values):
-        if isinstance(values, dict) and values.get("type") == "info" and not values.get("icon"):
-            return {**values, "icon": "info.svg"}
+    def migrate_icon(cls, values):
+        if isinstance(values, dict):
+            values = dict(values)
+            old_icon = values.pop("icon", "")
+            values.setdefault("uri", old_icon)
+            if values.get("type") == "info" and not values.get("uri"):
+                values["uri"] = "info.svg"
         return values
 
     @model_validator(mode="after")
@@ -147,9 +141,11 @@ class Item(Model):
                 raise ValueError("公告文件必须是 Markdown 或 TXT 文件")
         return self
 
-    @field_validator("icon")
+    @field_validator("uri")
     @classmethod
     def service_icon(cls, value):
+        if not value:
+            return value
         if value.startswith("/icons/services/"):
             name = value.removeprefix("/icons/services/")
             if name and all(part not in {"", ".", ".."} for part in name.split("/")):
@@ -248,9 +244,15 @@ def download_icon(url: str, name: str, directory: Path) -> str | None:
                 if data.startswith(signature):
                     content_type = detected_type
                     break
+            if data.startswith(b"RIFF") and data[8:12] == b"WEBP":
+                content_type = "image/webp"
+            elif data[4:8] == b"ftyp" and data[8:12] in {b"avif", b"avis"}:
+                content_type = "image/avif"
+            elif re.search(rb"<svg(?:\s|>)", data[:4096]):
+                content_type = "image/svg+xml"
             if not data or len(data) > 2 * 1024 * 1024 or not content_type.startswith("image/"):
                 raise ValueError(f"无效图标响应：{content_type}，{len(data)} 字节")
-            suffix = {"image/svg+xml": ".svg", "image/png": ".png", "image/jpeg": ".jpg", "image/gif": ".gif", "image/x-icon": ".ico", "image/vnd.microsoft.icon": ".ico"}.get(content_type)
+            suffix = {"image/svg+xml": ".svg", "image/png": ".png", "image/jpeg": ".jpg", "image/gif": ".gif", "image/webp": ".webp", "image/avif": ".avif", "image/x-icon": ".ico", "image/vnd.microsoft.icon": ".ico"}.get(content_type)
             if suffix is None:
                 suffix = Path(urlsplit(image_url).path).suffix.lower()
                 suffix = suffix if re.fullmatch(r"\.[a-z0-9]{1,8}", suffix) else ".ico"
@@ -265,53 +267,73 @@ def download_icon(url: str, name: str, directory: Path) -> str | None:
     return None
 
 
-def read_config(
-    path: Path, root: Path | None = None, download_icons: bool = False
-) -> Config:
+def read_config(path: Path, root: Path | None = None) -> Config:
     original = path.read_text(encoding="utf-8-sig")
     document = tomlkit.parse(original)
     for section in document.get("sections", []):
         section.setdefault("width", 2)
         section.setdefault("columns", 1)
         for item in section.get("items", []):
-            url = item.get("url")
-            match = re.fullmatch(r"\[[^]]*\]\((https?://[^)]+)\)", url or "")
+            # 兼容已有部署，旧 icon 字段自动迁移到 uri。
+            if "icon" in item:
+                old_icon = item.pop("icon")
+                item.setdefault("uri", old_icon)
+            match = re.fullmatch(r"\[[^]]*\]\((https?://[^)]+)\)", item.get("url") or "")
             if match:
                 item["url"] = match.group(1)
-            # 下载图标会访问网络，只能由后台任务显式触发，不能阻塞启动或热更新。
-            parsed_url = urlsplit(item.get("url", ""))
-            http_url = parsed_url.scheme in {"http", "https"} and bool(parsed_url.hostname)
-            if (
-                download_icons
-                and root
-                and item.get("type", "link") == "link"
-                and http_url
-                and not icon_exists(root, item.get("icon"))
-            ):
-                filename = download_icon(item.get("url", ""), item.get("name", ""), static_root(root) / "icons/services")
-                if filename:
-                    item["icon"] = filename
-    # 先验证整份配置，再回写，避免将无效编辑写回磁盘。
     result = Config.model_validate(document.unwrap())
     for section, validated_section in zip(document.get("sections", []), result.sections):
         for item, validated_item in zip(section.get("items", []), validated_section.items):
-            if validated_item.type == "info" and (
-                not item.get("icon") or (root and not icon_exists(root, validated_item.icon))
-            ):
-                item["icon"] = validated_item.icon = "info.svg"
+            if validated_item.type == "info" and not item.get("uri"):
+                item["uri"] = validated_item.uri
     normalized = leading_comments(original) + tomlkit.dumps(format_document(document))
     if normalized != original:
-        # 编辑器保存期间不覆盖更新的内容；下一次扫描会重试。
         if path.read_text(encoding="utf-8-sig") != original:
             raise ValueError("配置正在保存，稍后重试")
         path.write_text(normalized, encoding="utf-8")
     return result
 
 
+def collect_icon_updates(path: Path, root: Path) -> tuple[str, list]:
+    """只做网络和图片写入；配置在事件循环中核对版本后提交。"""
+    original = path.read_text(encoding="utf-8-sig")
+    config = Config.model_validate(tomlkit.parse(original).unwrap())
+    jobs = []
+    for section_index, section in enumerate(config.sections):
+        for item_index, item in enumerate(section.items):
+            if item.type == "link" and (not item.uri or Path(item.uri).stem == item.name):
+                jobs.append((section_index, item_index, item))
+
+    def fetch(job):
+        section_index, item_index, item = job
+        try:
+            filename = download_icon(item.url, item.name, static_root(root) / "icons/services")
+        except (OSError, ValueError) as exc:
+            logging.getLogger("uvicorn.error").warning("图标抓取失败 [%s]：%s", item.name, exc)
+            filename = None
+        return section_index, item_index, filename
+
+    # 相同名称落到同一文件，按顺序抓取，避免并发覆盖导致内容不确定。
+    names = [item.name for _, _, item in jobs]
+    with ThreadPoolExecutor(max_workers=4 if len(names) == len(set(names)) else 1) as pool:
+        return original, list(pool.map(fetch, jobs))
+
+
+def apply_icon_updates(path: Path, original: str, updates: list) -> str | None:
+    if path.read_text(encoding="utf-8-sig") != original:
+        return None  # 抓取期间有新编辑，交给下一轮，绝不覆盖用户配置。
+    document = tomlkit.parse(original)
+    for section_index, item_index, filename in updates:
+        item = document["sections"][section_index]["items"][item_index]
+        if filename:
+            item["uri"] = filename
+        else:
+            item.pop("uri", None)  # 失败使用 link.svg，旧自动图标不再引用。
+    content = leading_comments(original) + tomlkit.dumps(format_document(document))
+    if content != original:
+        path.write_text(content, encoding="utf-8")
+    return content
+
+
 def load_site(path: Path, root: Path) -> dict:
-    data = read_config(path, root).model_dump(exclude={"server"})
-    for section in data["sections"]:
-        for item in section["items"]:
-            if not icon_exists(root, item["icon"]):
-                item["error"] = "文件不存在"
-    return data
+    return read_config(path, root).model_dump(exclude={"server"})

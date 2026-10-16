@@ -7,7 +7,7 @@ TOML 驱动的 ACM 集训队导航页，支持链接、Markdown 公告、资源�
 Linux 服务器需要 Python 3.11+。以下以 `/opt/acm-nav` 为安装目录，服务使用当前登录用户运行；更换目录时同步修改命令和 systemd 配置。
 
 ```bash
-VERSION=v1.0.16
+VERSION=v1.0.18
 sudo apt install python3 python3-venv unzip curl
 curl -fLO "https://github.com/fsfgrafb/acm-nav/releases/download/$VERSION/acm-nav-$VERSION.zip"
 sudo mkdir -p /opt/acm-nav
@@ -50,7 +50,7 @@ sudo systemctl status acm-nav --no-pager
 
 ```bash
 set -e
-VERSION=v1.0.16
+VERSION=v1.0.18
 APP_DIR=/opt/acm-nav
 curl -fLO "https://github.com/fsfgrafb/acm-nav/releases/download/$VERSION/acm-nav-$VERSION.zip"
 unzip -tq "acm-nav-$VERSION.zip"
@@ -87,18 +87,26 @@ sudo systemctl status acm-nav --no-pager
 | --- | --- | --- |
 | `name` | 必填 | 卡片名称。 |
 | `type` | `"link"` | `link` 外部链接、`info` 公告、`resource` 下载资源。 |
-| `icon` | `info` 为 `"info.svg"`，其余为 `"link.svg"` | 图标文件名或 `/icons/services/` 下的路径；公告图标文件不存在时自动补为 `info.svg`。 |
+| `uri` | 空，公告为 `"info.svg"` | 图标文件名或 `/icons/services/` 下的路径；缺失或文件不存在时显示占位图标。旧 `icon` 字段会自动迁移为 `uri`。 |
 | `description` | 空 | 卡片说明，悬浮或触屏时显示。 |
 | `url` | 空 | `link` 必填 HTTP(S) 地址；`resource` 必填地址或资源文件名；`info` 可选 `.md`、`.markdown`、`.txt` 文件地址。 |
 | `content` | 空 | 公告 Markdown 内容；填写 `url` 时优先读取文件。 |
 
-链接图标未填写或文件不存在时，后台尝试抓取网页图标，失败则尝试 `/favicon.ico`；成功后将文件名写回配置。资源和公告支持 HTTP(S)、文件名简写或 `/resources/` 路径。
+链接图标在启动、每次有效的 `config.toml` 热更新和每天北京时间凌晨 1 点全量检查并后台抓取，先尝试网页声明的图标，再尝试 `/favicon.ico`。规则如下：
+
+- `uri` 未填写或为空：抓取成功后以卡片 `name` 加图片实际后缀保存，并写回 `uri`；失败则不写入 `uri`，显示 `link.svg`。
+- `uri` 文件名去掉最后一个后缀与卡片 `name` 相同：重新抓取并更新文件和 `uri`；失败则清除 `uri`，显示 `link.svg`。
+- `uri` 文件名去掉后缀与 `name` 不同：作为手工指定的图标保留，即使文件不存在也不会自动抓取或覆盖。
+
+自动生成的图标以 `name` 命名，建议卡片名称唯一且不包含文件名保留字符。抓取期间修改配置会排队重试，不会用旧配置覆盖新编辑；图标写回自身不会再次触发抓取。向图标目录新增或替换文件也会通知已打开的页面更新图标。
+
+资源和公告支持 HTTP(S)、文件名简写或 `/resources/` 路径。所有可见卡片按页面顺序使用同一个颜色池，跨区域循环。
 
 部署后的资源位置：
 
 ```text
 static/
-├── icons/services/    # icon = "a.svg" 对应这里的 a.svg
+├── icons/services/    # uri = "a.svg" 对应这里的 a.svg
 ├── icons/site/        # Logo、主题按钮和 favicon
 └── resources/         # url = "a.md" 对应这里的 a.md
 ```
@@ -115,7 +123,7 @@ npm --prefix frontend run build
 .venv\Scripts\python -m backend.main
 ```
 
-打开 `http://127.0.0.1/`。前端修改后重新构建。`frontend/public/` 会复制到 `frontend/dist/`；发布时将图标和资源移到 `static/`。本地存在 `static/` 时优先使用它，否则读取构建目录中的资源。
+打开 `http://127.0.0.1/`。生产构建包含现代和旧浏览器两套脚本及本地兼容补丁，旧版构建目标为 Chrome 64+、Edge 79+、Firefox 67+、Safari 12+；实际机房定制浏览器仍需实测。现代浏览器保留全部视觉动效，旧浏览器不支持的 CSS 效果使用基础样式。服务端首屏同时输出卡片和链接，即使脚本加载失败也可访问导航；公告在脚本可用时使用完整弹窗渲染。前端修改后重新构建。`frontend/public/` 会复制到 `frontend/dist/`；发布时将图标和资源移到 `static/`。本地存在 `static/` 时优先使用它，否则读取构建目录中的资源。
 
 ## 卸载
 

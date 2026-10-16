@@ -1,20 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import { createLowlight } from 'lowlight';
-import cpp from 'highlight.js/lib/languages/cpp';
-import c from 'highlight.js/lib/languages/c';
-import python from 'highlight.js/lib/languages/python';
-import bash from 'highlight.js/lib/languages/bash';
-import javascript from 'highlight.js/lib/languages/javascript';
-import typescript from 'highlight.js/lib/languages/typescript';
-import json from 'highlight.js/lib/languages/json';
-import css from 'highlight.js/lib/languages/css';
-import xml from 'highlight.js/lib/languages/xml';
-import yaml from 'highlight.js/lib/languages/yaml';
-import ini from 'highlight.js/lib/languages/ini';
+import dialogPolyfill from 'dialog-polyfill';
+import 'dialog-polyfill/dist/dialog-polyfill.css';
 import version from './version.txt?raw';
+
+const Markdown = React.lazy(() => import('./Markdown'));
 
 console.log(`ACM Nav ${version.trim()}`);
 
@@ -25,149 +15,23 @@ const siteAssets = {
 };
 const resourceUrl = url => url?.startsWith('/resources/') || /^(?:[a-z][a-z\d+.-]*:|\/\/)/i.test(url)
   ? url : `/resources/${url}`;
-const serviceIcon = icon => icon.startsWith('/icons/') ? icon : `services/${icon}`;
+const serviceIcon = uri => !uri ? '' : uri.startsWith('/icons/') ? uri : `services/${uri}`;
+const colorPool = ['#4f96ff', '#9b71ff', '#ff8f5a', '#3dd5a0', '#ef6f9a'];
 // 操作和状态提示由前端统一维护，配置只负责站点展示内容。
 const text = {
   theme_light: '切换为深色模式',
   theme_dark: '切换为浅色模式',
   close_label: '关闭',
-  copy: '复制',
-  copied: '已复制',
-  copy_failed: '复制失败，请手动选择',
   offline: '连接暂时中断，正在重连…',
   unavailable: '站点配置暂不可用，修正后将自动恢复。',
 };
-const RevisionContext = React.createContext('0');
-const CodeBlockContext = React.createContext(false);
-const highlighter = createLowlight({ c, cpp, python, bash, javascript, typescript, json, css, xml, yaml, ini });
-
-function flattenTokens(nodes, classes = []) {
-  return nodes.flatMap(node => {
-    if (node.type === 'text') return [{ value: node.value, classes }];
-    return flattenTokens(node.children, [...classes, ...(node.properties?.className || [])]);
-  });
-}
-
-function highlightedLines(source, language) {
-  const tokens = !language || !highlighter.registered(language)
-    ? [{ value: source, classes: [] }]
-    : flattenTokens(highlighter.highlight(language, source).children);
-  const lines = [[]];
-  tokens.forEach(({ value, classes }) => value.split(/(\r?\n)/).forEach(part => {
-    if (/^\r?\n$/.test(part)) lines.push([]);
-    else if (part) lines.at(-1).push({ value: part, classes });
-  }));
-  return lines;
-}
-
-function renderTokens(nodes) {
-  return nodes.map((node, index) => node.type === 'text' ? node.value :
-    <span key={index} className={node.properties?.className?.join(' ')}>{renderTokens(node.children)}</span>);
-}
-
-function HighlightedCode({ className, children }) {
-  const isBlock = React.useContext(CodeBlockContext);
-  const source = String(children ?? '');
-  const language = /language-([^\s]+)/.exec(className || '')?.[1]?.toLowerCase();
-  const tokens = React.useMemo(() => !language || !highlighter.registered(language)
-    ? source : renderTokens(highlighter.highlight(language, source).children), [language, source]);
-  const lines = React.useMemo(() => isBlock ? highlightedLines(source, language) : null, [isBlock, language, source]);
-  if (lines) return <code className={className}>{lines.map((line, lineIndex) =>
-    <span className="code-line" key={lineIndex}><span className="code-line-content">{line.map(({ value, classes }, tokenIndex) =>
-      classes.length ? <span key={tokenIndex} className={classes.join(' ')}>{value}</span> : value)}</span></span>)}</code>;
-  return <code className={className}>{tokens}</code>;
-}
-
-function MarkdownImage({ src, ...props }) {
-  const revision = React.useContext(RevisionContext);
-  if (src) {
-    try {
-      // 公告内的 ./assets/ 路径对应 static/resources/assets/。
-      if (src.startsWith('./assets/')) src = `/resources/assets/${src.slice('./assets/'.length)}`;
-      const url = new URL(src, location.origin);
-      const zoom = url.searchParams.get('_acmZoom');
-      if (zoom) {
-        url.searchParams.delete('_acmZoom');
-        src = url.pathname + url.search + url.hash;
-        props.style = { ...props.style, zoom };
-      }
-      if (url.origin === location.origin && url.pathname.startsWith('/icons/')) {
-        url.searchParams.set('v', revision);
-        src = url.pathname + url.search + url.hash;
-      }
-    } catch {} // 无效图片地址不应中断整张公告。
+// 公告模块加载或渲染失败时，导航仍然保持可用。
+class AnnouncementBoundary extends React.Component {
+  state = { failed: false };
+  static getDerivedStateFromError() { return { failed: true }; }
+  render() {
+    return this.state.failed ? <p role="status">公告渲染失败，请关闭后重新打开。</p> : this.props.children;
   }
-  return <img {...props} src={src} />;
-}
-
-function MarkdownLink({ href, ...props }) {
-  // 公告文件的相对链接以 static/resources/ 为基准。
-  if (href?.startsWith('./')) href = `/resources/${href.slice('./'.length)}`;
-  return <a {...props} href={href} target="_blank" rel="noopener noreferrer" />;
-}
-
-function normalizeAnnouncementImages(content) {
-  // 仅转换公告中约定的 <img src="./assets/..."> 写法，避免启用整段原始 HTML。
-  return content.replace(/<img\s+([^>]*?)\s*\/?\s*>/gi, (tag, attributes) => {
-    const read = name => new RegExp(`\\b${name}\\s*=\\s*(["'])(.*?)\\1`, 'i').exec(attributes)?.[2];
-    const src = read('src');
-    if (!src?.startsWith('./assets/')) return tag;
-    const alt = read('alt') || '';
-    const zoom = /(?:^|;)\s*zoom\s*:\s*([^;]+)/i.exec(read('style') || '')?.[1]?.trim();
-    const target = zoom ? `${src}${src.includes('?') ? '&' : '?'}_acmZoom=${encodeURIComponent(zoom)}` : src;
-    return `![${alt.replace(/[\[\]\\]/g, '\\$&')}](${target.replace(/[()\\]/g, '\\$&')})`;
-  });
-}
-
-function CodeBlock({ children }) {
-  const pre = useRef(null);
-  const resetTimer = useRef(null);
-  const [message, setMessage] = useState('copy');
-  useEffect(() => {
-    setMessage('copy');
-    return () => clearTimeout(resetTimer.current);
-  }, [children]);
-  async function copy() {
-    const source = pre.current.textContent;
-    try {
-      if (navigator.clipboard && window.isSecureContext) await navigator.clipboard.writeText(source);
-      else {
-        const area = document.createElement('textarea');
-        area.value = source;
-        area.style.cssText = 'position:fixed;opacity:0';
-        pre.current.closest('dialog').append(area);
-        const focused = document.activeElement;
-        area.select();
-        const ok = document.execCommand('copy');
-        area.remove();
-        focused?.focus();
-        if (!ok) throw new Error('copy failed');
-      }
-      setMessage('copied');
-      clearTimeout(resetTimer.current);
-      resetTimer.current = setTimeout(() => setMessage('copy'), 800);
-    } catch {
-      clearTimeout(resetTimer.current);
-      setMessage('copy_failed');
-    }
-  }
-  return <div className="code-block"><pre ref={pre}><CodeBlockContext.Provider value>{children}</CodeBlockContext.Provider></pre>
-    <button type="button" className={`code-copy ${message === 'copied' ? 'is-copied' : ''}`} onClick={copy}
-      aria-label={text[message]} title={text[message]}><span className="copy-icon" aria-hidden="true" /></button>
-    <span className="sr-only" role="status">{message === 'copy' ? '' : text[message]}</span></div>;
-}
-
-function preserveCodeEscapes(content) {
-  // TOML 的基本字符串会将 '\\n' 解析为换行；在围栏代码的单、双引号中将其还原为转义字符。
-  return content.replace(/(^|\r?\n)((`{3,}|~{3,})[^\r\n]*\r?\n)([\s\S]*?)\r?\n\3(?=\r?\n|$)/g,
-    (_, boundary, opening, fence, body) => `${boundary}${opening}${body.replace(/(['"])\r?\n\1/g, '$1\\n$1')}\n${fence}`);
-}
-
-function Markdown({ content, revision }) {
-  return <RevisionContext.Provider value={revision}><ReactMarkdown remarkPlugins={[remarkGfm]} components={{
-    pre: CodeBlock, code: HighlightedCode, img: MarkdownImage,
-    a: MarkdownLink,
-  }}>{normalizeAnnouncementImages(preserveCodeEscapes(content))}</ReactMarkdown></RevisionContext.Provider>;
 }
 
 function Icon({ name, revision, fallback }) {
@@ -203,14 +67,33 @@ function App() {
   const infoOpen = active?.type === 'info';
 
   useEffect(() => {
-    const events = new EventSource('/api/events');
-    events.onmessage = event => {
-      const next = JSON.parse(event.data);
+    if (!dialog.current.showModal) dialogPolyfill.registerDialog(dialog.current);
+  }, []);
+
+  useEffect(() => {
+    const receive = next => {
       if (build.current !== null && build.current !== next.build) location.reload();
       build.current = next.build;
       setSnapshot(next);
       setOffline(false);
     };
+    // 部分精简浏览器没有 EventSource，改用轮询保持配置同步。
+    if (typeof EventSource === 'undefined') {
+      let stopped = false;
+      const poll = async () => {
+        try {
+          const response = await fetch('/api/site');
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          const next = await response.json();
+          if (!stopped) receive(next);
+        } catch { if (!stopped) setOffline(true); }
+      };
+      poll();
+      const timer = setInterval(poll, 10000);
+      return () => { stopped = true; clearInterval(timer); };
+    }
+    const events = new EventSource('/api/events');
+    events.onmessage = event => receive(JSON.parse(event.data));
     events.onerror = () => setOffline(true);
     return () => events.close();
   }, []);
@@ -231,7 +114,7 @@ function App() {
       clearTimeout(closeTimer.current);
       closing.current = false;
       dialog.current.classList.remove('is-closing');
-      dialog.current.close();
+      if (dialog.current.open) dialog.current.close();
       document.body.classList.remove('modal-open');
     }
     return () => {
@@ -246,21 +129,22 @@ function App() {
       setInfoContent(active?.content || '');
       return;
     }
-    const controller = new AbortController();
+    let cancelled = false;
+    const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
     setInfoContent('');
-    fetch(resourceUrl(active.url), { signal: controller.signal })
+    fetch(resourceUrl(active.url), controller ? { signal: controller.signal } : {})
       .then(response => {
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         return response.text();
       })
-      .then(content => setInfoContent(content))
-      .catch(error => { if (error.name !== 'AbortError') setInfoContent(`公告加载失败：${error.message}`); });
-    return () => controller.abort();
+      .then(content => { if (!cancelled) setInfoContent(content); })
+      .catch(error => { if (!cancelled) setInfoContent(`公告加载失败：${error.message}`); });
+    return () => { cancelled = true; controller?.abort(); };
   }, [infoOpen, active?.url, active?.content]);
 
   function finishClose() {
     clearTimeout(closeTimer.current);
-    dialog.current.close();
+    if (dialog.current.open) dialog.current.close();
     dialog.current.classList.remove('is-closing');
     closing.current = false;
     setSelected(null);
@@ -277,20 +161,21 @@ function App() {
     closeTimer.current = setTimeout(finishClose, duration * 1000 + 50);
   }
 
+  let colorIndex = 0;
   function card(item, index, section) {
+    const accent = colorPool[colorIndex++ % colorPool.length];
     const info = item.type === 'info';
-    const issue = item.error || '';
-    const description = item.error || item.description;
+    const description = item.description;
     const Tag = info ? 'button' : 'a';
-    return <Tag key={index} style={{ '--card-delay': `${index * 80}ms` }} className={`nav-card accent-${index % 5 + 1} ${description ? 'has-description' : ''}`}
+    return <Tag key={index} style={{ '--card-delay': `${index * 80}ms`, '--accent': accent }} className={`nav-card ${description ? 'has-description' : ''}`}
       {...(info ? { type: 'button' } : {
         href: resourceUrl(item.url),
         ...(item.type === 'resource' ? { download: '' } : { target: '_blank', rel: 'noopener noreferrer' }),
       })}
-      aria-label={issue ? `${item.name} (${issue})` : item.name} aria-haspopup={info ? 'dialog' : undefined}
+      aria-label={item.name} aria-haspopup={info ? 'dialog' : undefined}
       onClick={info ? event => { trigger.current = event.currentTarget; setSelected({ section: section.title, item: index }); } : undefined}>
-      <span className="card-icon"><Icon name={serviceIcon(item.icon)} revision={revision} fallback={info ? '/icons/services/info.svg' : siteAssets.fallback} /></span>
-      <span className="card-text"><span className="card-name">{item.name}{issue && ` · ${issue}`}</span>
+      <span className="card-icon"><Icon name={serviceIcon(item.uri)} revision={revision} fallback={info ? '/icons/services/info.svg' : siteAssets.fallback} /></span>
+      <span className="card-text"><span className="card-name">{item.name}</span>
         <span className="card-description">{description}</span></span>
     </Tag>;
   }
@@ -335,7 +220,7 @@ function App() {
       onClick={event => { if (event.target === dialog.current) { const r = dialog.current.getBoundingClientRect(); if (event.clientX < r.left || event.clientX > r.right || event.clientY < r.top || event.clientY > r.bottom) close(); } }}>
       <div className="modal-header"><h2 id="modal-title" title={active?.name}>{active?.name}</h2>
         <button className="modal-close" type="button" onClick={close} aria-label={text.close_label} /></div>
-      <div className="modal-content" tabIndex={0}><Markdown key={`${selected?.section}-${selected?.item}-${infoContent}`} content={infoContent} revision={revision} /></div>
+      <div className="modal-content" tabIndex={0}><AnnouncementBoundary key={`${selected?.section}-${selected?.item}`}><React.Suspense fallback={<p>正在加载公告…</p>}>{infoOpen && <Markdown key={`${selected?.section}-${selected?.item}-${infoContent}`} content={infoContent} revision={revision} />}</React.Suspense></AnnouncementBoundary></div>
     </dialog>
   </>;
 }

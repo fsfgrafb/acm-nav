@@ -10,12 +10,15 @@ import os
 import time
 from contextlib import asynccontextmanager, suppress
 from pathlib import Path
+from datetime import datetime, timedelta, timezone
+from urllib.parse import quote, urlsplit
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
 
 from .config import (
     Server, ensure_config, frontend_root, load_site, local_path, read_config, static_root,
+    collect_icon_updates, apply_icon_updates,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -23,13 +26,63 @@ log = logging.getLogger("uvicorn.error")
 NO_CACHE = {"Cache-Control": "no-store"}
 
 
+def seconds_until_icon_refresh(now: datetime | None = None) -> float:
+    # 校园部署固定用北京时间，不依赖服务器的系统时区，也不额外依赖 tzdata。
+    now = now or datetime.now(timezone(timedelta(hours=8)))
+    now = now.astimezone(timezone(timedelta(hours=8)))
+    target = now.replace(hour=1, minute=0, second=0, microsecond=0)
+    if target <= now:
+        target += timedelta(days=1)
+    return (target - now).total_seconds()
+
+
+def initial_sections(site: dict, revision: str) -> str:
+    """脚本尚未启动或加载失败时，导航链接也能直接使用。"""
+    colors = ("#4f96ff", "#9b71ff", "#ff8f5a", "#3dd5a0", "#ef6f9a")
+    groups = []
+    color_index = 0
+    sections = site.get("sections", [])
+    ordered = [section for section in sections if section.get("visibility") == "public"]
+    ordered += [section for section in sections if section.get("visibility") == "admin"]
+    for index, section in enumerate(ordered):
+        cards = []
+        for item_index, item in enumerate(section.get("items", [])):
+            name = html.escape(item["name"], quote=True)
+            description = html.escape(item.get("description", ""), quote=True)
+            info = item.get("type") == "info"
+            uri = item.get("uri") or ("info.svg" if info else "link.svg")
+            uri = uri if uri.startswith("/icons/services/") else "/icons/services/" + uri
+            icon = quote(uri, safe="/") + "?v=" + revision
+            color = colors[color_index % len(colors)]
+            color_index += 1
+            attributes = f'class="nav-card {"has-description" if description else ""}" style="--accent:{color};--card-delay:{item_index * 80}ms"'
+            body = f'<span class="card-icon"><img src="{icon}" alt=""></span><span class="card-text"><span class="card-name">{name}</span><span class="card-description">{description}</span></span>'
+            url = item.get("url", "")
+            if url and not urlsplit(url).scheme and not url.startswith("/resources/"):
+                url = "/resources/" + url
+            href = html.escape(url, quote=True)
+            if info:
+                content = html.escape(item.get("content", ""))
+                detail = f'<a href="{href}" target="_blank" rel="noopener noreferrer">打开公告文件</a>' if url else f'<pre>{content}</pre>'
+                cards.append(f'<details class="fallback-announcement"><summary {attributes}>{body}</summary><div class="fallback-content">{detail}</div></details>')
+            else:
+                action = 'download' if item.get("type") == "resource" else 'target="_blank" rel="noopener noreferrer"'
+                cards.append(f'<a {attributes} href="{href}" {action}>{body}</a>')
+        width, columns = section.get("width", 2), section.get("columns", 1)
+        title = html.escape(section["title"], quote=True)
+        groups.append(f'<section class="service-section" style="--width:{width};--columns:{columns};--enter-delay:{index * 120}ms" aria-labelledby="section-{index}"><div class="section-heading"><h2 id="section-{index}" title="{title}">{title}</h2></div><div class="card-list">{"".join(cards)}</div></section>')
+    return '<main class="page-shell"><div class="section-grid">' + "".join(groups) + '</div></main>'
+
+
 def initial_document(template: str, data: dict) -> str:
     """首屏标题直接随 HTML 返回，React 接管后继续使用同一份请求快照。"""
     site = data.get("site")
     header = ""
+    sections = ""
     if site:
         appearance = {key: html.escape(value, quote=True) for key, value in site["appearance"].items()}
         revision = html.escape(data["revision"], quote=True)
+        sections = initial_sections(site, revision)
         ip = html.escape(data.get("current_ip") or "", quote=True)
         header = f'''<header class="site-header page-shell">
           <div class="brand">
@@ -47,11 +100,11 @@ def initial_document(template: str, data: dict) -> str:
         template = template.replace('<link rel="icon" />', f'<link rel="icon" href="/icons/site/favicon.svg?v={revision}" />')
     # script 元素内的 JSON 必须转义 <，防止公告中的 </script> 提前结束标签。
     snapshot = json.dumps(data, ensure_ascii=False).replace("<", "\\u003c")
-    initial = f'''<div id="root"><div class="ambient ambient-one" aria-hidden="true"></div><div class="ambient ambient-two" aria-hidden="true"></div>{header}</div>
+    initial = f'''<div id="root"><div class="ambient ambient-one" aria-hidden="true"></div><div class="ambient ambient-two" aria-hidden="true"></div>{header}{sections}</div>
     <script id="site-snapshot" type="application/json">{snapshot}</script>
     <script>if (document.documentElement.dataset.theme === 'dark') {{
-      const button = document.querySelector('.theme-toggle');
-      if (button) {{ button.title = button.ariaLabel = '切换为浅色模式'; button.querySelector('img').src = '/icons/site/moon.svg?v={data['revision']}'; }}
+      var button = document.querySelector('.theme-toggle');
+      if (button) {{ button.title = '切换为浅色模式'; button.setAttribute('aria-label', '切换为浅色模式'); button.querySelector('img').src = '/icons/site/moon.svg?v={data['revision']}'; }}
     }}</script>'''
     return template.replace('<div id="root"></div>', initial)
 
@@ -81,6 +134,9 @@ class LiveSite:
         self.build = ""
         self.changed = asyncio.Condition()
         self.icon_download = None
+        self.icon_download_pending = False
+        self.known_config = None
+        self.known_config_fingerprint = None
 
     def refresh(self):
         try:
@@ -95,19 +151,39 @@ class LiveSite:
         files = [output / "index.html", *(output / "assets").rglob("*.js")]
         self.build = hashlib.sha256(repr(fingerprint(files)).encode()).hexdigest()[:16]
 
+    def remember_config(self):
+        self.known_config = self.config.read_text(encoding="utf-8-sig")
+        self.known_config_fingerprint = fingerprint([self.config])
+
     def queue_icon_download(self):
-        """Fetch missing link icons without delaying application startup or reloads."""
+        self.icon_download_pending = True
         if self.icon_download and not self.icon_download.done():
             return
 
         async def download():
-            try:
-                # 配置先正常加载，缺失图标再由后台补齐。
-                await asyncio.to_thread(read_config, self.config, self.root, True)
-            except (ValueError, OSError) as exc:
-                log.warning("图标下载未完成：%s", exc)
+            while self.icon_download_pending:
+                self.icon_download_pending = False
+                try:
+                    original, updates = await asyncio.to_thread(collect_icon_updates, self.config, self.root)
+                    content = apply_icon_updates(self.config, original, updates)
+                    if content is None:
+                        self.icon_download_pending = True
+                        continue
+                    # 自己写回 URI 不算新的用户编辑，防止无限重抓。
+                    self.known_config = content
+                    self.known_config_fingerprint = fingerprint([self.config])
+                    self.refresh()
+                    async with self.changed:
+                        self.changed.notify_all()
+                except (ValueError, OSError) as exc:
+                    log.warning("图标下载未完成：%s", exc)
 
         self.icon_download = asyncio.create_task(download())
+
+    async def daily_icons(self):
+        while True:
+            await asyncio.sleep(seconds_until_icon_refresh())
+            self.queue_icon_download()
 
     def payload(self, admin=False, current_ip=None):
         # 只构造响应外层；不修改配置，也不复制只读的卡片内容。
@@ -128,10 +204,8 @@ class LiveSite:
         }
 
     async def watch(self):
-        paths = list(dict.fromkeys([self.config, frontend_root(self.root), static_root(self.root)]))
-        previous = await asyncio.to_thread(fingerprint, paths)
-        self.refresh()
-        self.queue_icon_download()
+        paths = [self.config, self.root / "frontend", self.root / "static"]
+        previous = ()  # 首轮也扫描，捕获启动任务期间发生的文件变化。
         while True:
             await asyncio.sleep(0.5)
             current = await asyncio.to_thread(fingerprint, paths)
@@ -143,8 +217,19 @@ class LiveSite:
             if current != stable:
                 continue
             previous = stable
-            await asyncio.to_thread(self.refresh)
-            self.queue_icon_download()
+            try:
+                content = self.config.read_text(encoding="utf-8-sig")
+            except OSError:
+                content = None
+            config_changed = (
+                content != self.known_config
+                or fingerprint([self.config]) != self.known_config_fingerprint
+            )
+            self.refresh()
+            if self.error is None:
+                self.remember_config()
+                if config_changed:
+                    self.queue_icon_download()
             async with self.changed:
                 self.changed.notify_all()
 
@@ -203,13 +288,16 @@ def create_app(root: Path = ROOT, config: Path | None = None) -> FastAPI:
         ensure_config(config)
         await asyncio.to_thread(visits.restore)
         live.refresh()
+        if live.error is None:
+            live.remember_config()
         live.queue_icon_download()
         watcher = asyncio.create_task(live.watch())
         checkpoint = asyncio.create_task(visits.checkpoint())
+        daily_icons = asyncio.create_task(live.daily_icons())
         try:
             yield
         finally:
-            tasks = [watcher, checkpoint]
+            tasks = [watcher, checkpoint, daily_icons]
             if live.icon_download:
                 tasks.append(live.icon_download)
             for task in tasks:

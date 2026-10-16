@@ -74,10 +74,6 @@ button:focus-visible, a:focus-visible { outline: 3px solid rgba(95,161,255,.5); 
 .nav-card > * { position: relative; }
 .nav-card:is(:hover,:focus-visible) { z-index: 2; transform: translateY(-4px) scale(1.025); box-shadow: 0 15px 30px color-mix(in srgb,var(--accent) 18%,transparent); border-color: color-mix(in srgb,var(--accent) 45%,transparent); background: color-mix(in srgb,var(--accent) 7%,var(--surface)); }
 .nav-card:active { transform: translateY(-1px) scale(1.005); }
-.accent-2 { --accent: #9b71ff; }
-.accent-3 { --accent: #ff8f5a; }
-.accent-4 { --accent: #3dd5a0; }
-.accent-5 { --accent: #ef6f9a; }
 .card-icon { display: grid; place-items: center; width: 42px; height: 42px; overflow: hidden; border-radius: 13px; background: color-mix(in srgb,var(--accent) 14%,transparent); }
 .card-icon img { width: 25px; height: 25px; object-fit: contain; }
 .card-text { display: block; min-width: 0; height: 24px; overflow: hidden; }
@@ -192,3 +188,25 @@ body.modal-open { overflow: hidden; }
   *, *::before, *::after { transition: none !important; animation-duration: .01ms !important; animation-delay: 0ms !important; }
   .nav-card:is(:hover,:focus-visible) { transform: none; }
 }
+
+/* 不支持新版布局语法的浏览器先使用基础网格，新浏览器继续使用原有效果。 */
+@supports not (grid-template-columns: repeat(auto-fill,minmax(min(100%,180px),1fr))) {
+  .card-list { grid-template-columns: repeat(var(--columns),minmax(0,1fr)); }
+}
+@supports not (width: min(100%,180px)) {
+  .page-shell { width: calc(100% - 48px); max-width: 1180px; margin-left: auto; margin-right: auto; }
+  .modal-panel { width: calc(100% - 32px); max-width: 650px; max-height: calc(100vh - 48px); }
+  @media (max-width: 767px) { .card-list { grid-template-columns: 1fr; } }
+}
+@supports not (color: color-mix(in srgb,red,blue)) {
+  .card-icon { background: rgba(79,150,255,.14); }
+  .nav-card:hover, .nav-card:focus { border-color: var(--accent); box-shadow: 0 15px 30px rgba(79,150,255,.18); }
+}
+.modal-panel:not([open]) { display: none; }
+.modal-panel + .backdrop { position: fixed; inset: 0; background: rgba(1,6,16,.68); backdrop-filter: blur(8px); }
+.modal-panel.is-closing + .backdrop { animation: backdrop-out 230ms var(--ease) both; }
+.fallback-announcement { min-width: 0; }
+.fallback-announcement summary { list-style: none; }
+.fallback-announcement summary::-webkit-details-marker { display: none; }
+.fallback-content { padding: 16px; overflow-wrap: anywhere; }
+.fallback-content pre { white-space: pre-wrap; }
