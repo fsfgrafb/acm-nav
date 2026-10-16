@@ -15,7 +15,7 @@ const siteAssets = {
 };
 const resourceUrl = url => url?.startsWith('/resources/') || /^(?:[a-z][a-z\d+.-]*:|\/\/)/i.test(url)
   ? url : `/resources/${url}`;
-const serviceIcon = uri => !uri ? '' : uri.startsWith('/icons/') ? uri : `services/${uri}`;
+const serviceIcon = icon => !icon ? '' : icon.startsWith('/icons/') ? icon : `services/${icon}`;
 const colorPool = ['#4f96ff', '#9b71ff', '#ff8f5a', '#3dd5a0', '#ef6f9a'];
 // 操作和状态提示由前端统一维护，配置只负责站点展示内容。
 const text = {
@@ -174,7 +174,7 @@ function App() {
       })}
       aria-label={item.name} aria-haspopup={info ? 'dialog' : undefined}
       onClick={info ? event => { trigger.current = event.currentTarget; setSelected({ section: section.title, item: index }); } : undefined}>
-      <span className="card-icon"><Icon name={serviceIcon(item.uri)} revision={revision} fallback={info ? '/icons/services/info.svg' : siteAssets.fallback} /></span>
+      <span className="card-icon"><Icon name={serviceIcon(item.icon)} revision={revision} fallback={info ? '/icons/services/info.svg' : siteAssets.fallback} /></span>
       <span className="card-text"><span className="card-name">{item.name}</span>
         <span className="card-description">{description}</span></span>
     </Tag>;

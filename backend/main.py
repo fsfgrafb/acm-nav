@@ -50,9 +50,9 @@ def initial_sections(site: dict, revision: str) -> str:
             name = html.escape(item["name"], quote=True)
             description = html.escape(item.get("description", ""), quote=True)
             info = item.get("type") == "info"
-            uri = item.get("uri") or ("info.svg" if info else "link.svg")
-            uri = uri if uri.startswith("/icons/services/") else "/icons/services/" + uri
-            icon = quote(uri, safe="/") + "?v=" + revision
+            filename = item.get("icon") or ("info.svg" if info else "link.svg")
+            filename = filename if filename.startswith("/icons/services/") else "/icons/services/" + filename
+            icon = quote(filename, safe="/") + "?v=" + revision
             color = colors[color_index % len(colors)]
             color_index += 1
             attributes = f'class="nav-card {"has-description" if description else ""}" style="--accent:{color};--card-delay:{item_index * 80}ms"'
@@ -169,7 +169,7 @@ class LiveSite:
                     if content is None:
                         self.icon_download_pending = True
                         continue
-                    # 自己写回 URI 不算新的用户编辑，防止无限重抓。
+                    # 自己写回 icon 不算新的用户编辑，防止无限重抓。
                     self.known_config = content
                     self.known_config_fingerprint = fingerprint([self.config])
                     self.refresh()

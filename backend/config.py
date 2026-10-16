@@ -32,6 +32,13 @@ def static_root(root: Path) -> Path:
     return deployed_static if deployed_static.is_dir() else frontend_root(root)
 
 
+def migrate_icon_field(item):
+    """兼容 v1.0.18 的 uri；同时存在时以用户设置的 icon 为准。"""
+    if "uri" in item:
+        legacy_icon = item.pop("uri")
+        item.setdefault("icon", legacy_icon)
+
+
 def reorder_table(table, fields: tuple[str, ...]):
     """Create a TOML table with its known fields in a stable order."""
     ordered = tomlkit.table()
@@ -55,7 +62,7 @@ def format_document(document):
         for item in section.get("items", []):
             items.append(
                 reorder_table(
-                    item, ("name", "type", "url", "uri", "description", "content")
+                    item, ("name", "type", "url", "icon", "description", "content")
                 )
             )
         if items:
@@ -101,7 +108,7 @@ class Admin(Model):
 
 class Item(Model):
     name: str = Field(min_length=1)
-    uri: str = ""
+    icon: str = ""
     description: str = ""
     type: Literal["link", "info", "resource"] = "link"
     url: str = ""
@@ -112,10 +119,9 @@ class Item(Model):
     def migrate_icon(cls, values):
         if isinstance(values, dict):
             values = dict(values)
-            old_icon = values.pop("icon", "")
-            values.setdefault("uri", old_icon)
-            if values.get("type") == "info" and not values.get("uri"):
-                values["uri"] = "info.svg"
+            migrate_icon_field(values)
+            if values.get("type") == "info" and not values.get("icon"):
+                values["icon"] = "info.svg"
         return values
 
     @model_validator(mode="after")
@@ -141,7 +147,7 @@ class Item(Model):
                 raise ValueError("公告文件必须是 Markdown 或 TXT 文件")
         return self
 
-    @field_validator("uri")
+    @field_validator("icon")
     @classmethod
     def service_icon(cls, value):
         if not value:
@@ -274,18 +280,15 @@ def read_config(path: Path, root: Path | None = None) -> Config:
         section.setdefault("width", 2)
         section.setdefault("columns", 1)
         for item in section.get("items", []):
-            # 兼容已有部署，旧 icon 字段自动迁移到 uri。
-            if "icon" in item:
-                old_icon = item.pop("icon")
-                item.setdefault("uri", old_icon)
+            migrate_icon_field(item)
             match = re.fullmatch(r"\[[^]]*\]\((https?://[^)]+)\)", item.get("url") or "")
             if match:
                 item["url"] = match.group(1)
     result = Config.model_validate(document.unwrap())
     for section, validated_section in zip(document.get("sections", []), result.sections):
         for item, validated_item in zip(section.get("items", []), validated_section.items):
-            if validated_item.type == "info" and not item.get("uri"):
-                item["uri"] = validated_item.uri
+            if validated_item.type == "info" and not item.get("icon"):
+                item["icon"] = validated_item.icon
     normalized = leading_comments(original) + tomlkit.dumps(format_document(document))
     if normalized != original:
         if path.read_text(encoding="utf-8-sig") != original:
@@ -301,7 +304,7 @@ def collect_icon_updates(path: Path, root: Path) -> tuple[str, list]:
     jobs = []
     for section_index, section in enumerate(config.sections):
         for item_index, item in enumerate(section.items):
-            if item.type == "link" and (not item.uri or Path(item.uri).stem == item.name):
+            if item.type == "link" and (not item.icon or Path(item.icon).stem == item.name):
                 jobs.append((section_index, item_index, item))
 
     def fetch(job):
@@ -323,12 +326,15 @@ def apply_icon_updates(path: Path, original: str, updates: list) -> str | None:
     if path.read_text(encoding="utf-8-sig") != original:
         return None  # 抓取期间有新编辑，交给下一轮，绝不覆盖用户配置。
     document = tomlkit.parse(original)
+    for section in document.get("sections", []):
+        for item in section.get("items", []):
+            migrate_icon_field(item)
     for section_index, item_index, filename in updates:
         item = document["sections"][section_index]["items"][item_index]
         if filename:
-            item["uri"] = filename
+            item["icon"] = filename
         else:
-            item.pop("uri", None)  # 失败使用 link.svg，旧自动图标不再引用。
+            item.pop("icon", None)  # 失败使用 link.svg，旧自动图标不再引用。
     content = leading_comments(original) + tomlkit.dumps(format_document(document))
     if content != original:
         path.write_text(content, encoding="utf-8")

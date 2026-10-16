@@ -14,7 +14,7 @@ from backend.main import LiveSite, initial_document, seconds_until_icon_refresh
 def config_text(items):
     return '[[sections]]\ntitle = "Public"\n' + ''.join(
         '\n[[sections.items]]\nname = "' + name + '"\nurl = "https://example.com"\n' +
-        (f'uri = "{uri}"\n' if uri is not None else '') for name, uri in items
+        (f'icon = "{icon}"\n' if icon is not None else '') for name, icon in items
     )
 
 
@@ -25,7 +25,7 @@ class IconTests(unittest.TestCase):
         self.root = Path(self.temp.name)
         self.path = self.root / 'config.toml'
 
-    def test_missing_owned_and_custom_uris(self):
+    def test_missing_owned_and_custom_icons(self):
         self.path.write_text(config_text([('Missing', None), ('Owned', '/icons/services/Owned.ico'), ('Manual', 'custom.svg'), ('Failed', 'Failed.png')]), encoding='utf-8')
         read_config(self.path, self.root)
         with patch('backend.config.download_icon', side_effect=lambda url, name, directory: None if name == 'Failed' else name + '.png') as fetch:
@@ -33,23 +33,41 @@ class IconTests(unittest.TestCase):
         self.assertEqual({call.args[1] for call in fetch.call_args_list}, {'Missing', 'Owned', 'Failed'})
         apply_icon_updates(self.path, original, updates)
         items = read_config(self.path, self.root).sections[0].items
-        self.assertEqual([item.uri for item in items], ['Missing.png', 'Owned.png', 'custom.svg', ''])
-        self.assertNotIn('uri', tomlkit.parse(self.path.read_text())['sections'][0]['items'][3])
+        self.assertEqual([item.icon for item in items], ['Missing.png', 'Owned.png', 'custom.svg', ''])
+        self.assertNotIn('icon', tomlkit.parse(self.path.read_text())['sections'][0]['items'][3])
         self.assertNotIn('error', load_site(self.path, self.root)['sections'][0]['items'][0])
 
-    def test_failed_missing_uri_stays_missing(self):
+    def test_failed_missing_icon_stays_missing(self):
         self.path.write_text(config_text([('Missing', None)]), encoding='utf-8')
         with patch('backend.config.download_icon', return_value=None):
             original, updates = collect_icon_updates(self.path, self.root)
         apply_icon_updates(self.path, original, updates)
-        self.assertNotIn('uri', tomlkit.parse(self.path.read_text())['sections'][0]['items'][0])
+        self.assertNotIn('icon', tomlkit.parse(self.path.read_text())['sections'][0]['items'][0])
 
-    def test_existing_icon_migrates_without_losing_manual_choice(self):
-        self.path.write_text(config_text([('Manual', 'custom.svg')]).replace('uri =', 'icon ='), encoding='utf-8')
-        self.assertEqual(read_config(self.path, self.root).sections[0].items[0].uri, 'custom.svg')
+    def test_legacy_uri_migrates_without_losing_manual_choice(self):
+        self.path.write_text(config_text([('Manual', 'custom.svg')]).replace('icon =', 'uri ='), encoding='utf-8')
+        self.assertEqual(read_config(self.path, self.root).sections[0].items[0].icon, 'custom.svg')
         content = self.path.read_text()
-        self.assertIn('uri = "custom.svg"', content)
-        self.assertNotIn('icon =', content)
+        self.assertIn('icon = "custom.svg"', content)
+        self.assertNotIn('uri =', content)
+
+    def test_icon_wins_over_legacy_uri_and_migration_is_idempotent(self):
+        self.path.write_text(config_text([('Manual', 'chosen.svg')]) + 'uri = "old.svg"\n', encoding='utf-8')
+        first = read_config(self.path, self.root)
+        self.assertEqual(first.sections[0].items[0].icon, 'chosen.svg')
+        self.assertNotIn('uri', first.sections[0].items[0].model_dump())
+        normalized = self.path.read_text()
+        read_config(self.path, self.root)
+        self.assertEqual(self.path.read_text(), normalized)
+        self.assertNotIn('uri =', normalized)
+
+    def test_refresh_migrates_legacy_manual_icons_too(self):
+        self.path.write_text(config_text([('Auto', None), ('Manual', 'custom.svg')]).replace('icon =', 'uri ='), encoding='utf-8')
+        with patch('backend.config.download_icon', return_value='Auto.png'):
+            original, updates = collect_icon_updates(self.path, self.root)
+        apply_icon_updates(self.path, original, updates)
+        items = read_config(self.path, self.root).sections[0].items
+        self.assertEqual([item.icon for item in items], ['Auto.png', 'custom.svg'])
 
     def test_new_edit_is_not_overwritten(self):
         self.path.write_text(config_text([('Before', None)]), encoding='utf-8')
@@ -142,13 +160,14 @@ class LiveIconTests(unittest.IsolatedAsyncioTestCase):
 
 class FallbackTests(unittest.TestCase):
     def test_links_are_present_without_javascript_and_colors_cross_sections(self):
-        items = [{'name': '<Card>', 'url': 'https://example.com/?a=1&b=2', 'type': 'link'} for _ in range(4)]
+        items = [{'name': '<Card>', 'url': 'https://example.com/?a=1&b=2', 'type': 'link', 'icon': 'custom.svg'} for _ in range(4)]
         sections = [{'title': 'One', 'visibility': 'public', 'items': items}, {'title': 'Two', 'visibility': 'public', 'items': items}]
         data = {'site': {'appearance': {'title': 'Title', 'kicker': 'ACM', 'description': ''}, 'sections': sections}, 'revision': '1', 'visit_count': 0}
         source = initial_document(Path('frontend/index.html').read_text(), data)
         self.assertEqual(source.count('class="nav-card '), 8)
         self.assertIn('href="https://example.com/?a=1&amp;b=2"', source)
         self.assertIn('&lt;Card&gt;', source)
+        self.assertIn('/icons/services/custom.svg?v=1', source)
         import re
         colors = re.findall(r'--accent:(#[0-9a-f]+)', source)
         self.assertEqual(colors[:3], colors[5:])

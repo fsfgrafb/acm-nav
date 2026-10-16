@@ -15,14 +15,14 @@ columns = 2
 
 [[sections.items]]
 name = "示例链接"
-uri = "link.svg"
+icon = "link.svg"
 type = "link"
 url = "http://127.0.0.1/"
 description = "示例描述"
 
 [[sections.items]]
 name = "示例公告"
-uri = "link.svg"
+icon = "link.svg"
 type = "info"
 description = "点击查看 Markdown 语法示例"
 content = """
