@@ -3,13 +3,16 @@
 import ipaddress
 import logging
 import re
+import time
 import tomlkit
 from concurrent.futures import ThreadPoolExecutor
+from http.cookiejar import CookieJar
 from html.parser import HTMLParser
 from pathlib import Path
 from typing import Literal
 from urllib.parse import urljoin, urlsplit
-from urllib.request import Request, urlopen
+from urllib.error import HTTPError
+from urllib.request import Request, build_opener, HTTPCookieProcessor
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -210,18 +213,32 @@ class IconLinkParser(HTMLParser):
             self.href = attributes["href"]
 
 
+def fetch_icon_data(opener, url: str, limit: int, referer: str = ""):
+    """图标与页面沿用同一会话；仅对临时网络错误重试。"""
+    headers = {"User-Agent": "acm-nav/1.0"}
+    if referer:
+        headers["Referer"] = referer
+    for attempt in range(3):
+        try:
+            with opener.open(Request(url, headers=headers), timeout=10) as response:
+                return response.read(limit), response.headers.get_content_type(), response.url
+        except OSError as exc:
+            if isinstance(exc, HTTPError) and exc.code not in {408, 429} and exc.code < 500:
+                raise
+            if attempt == 2:
+                raise
+            time.sleep(0.25 * (attempt + 1))
+
+
 def download_icon(url: str, name: str, directory: Path) -> str | None:
     if any(char in name for char in '<>:"/\\|?*') or name in {"", ".", ".."}:
         raise ValueError("自动下载图标时，卡片名称不能包含文件名保留字符")
-    request = Request(url, headers={"User-Agent": "acm-nav/1.0"})
+    opener = build_opener(HTTPCookieProcessor(CookieJar()))
     log = logging.getLogger("uvicorn.error")
     final_url = url
     parser = IconLinkParser()
     try:
-        with urlopen(request, timeout=5) as response:
-            page = response.read(512 * 1024)
-            content_type = response.headers.get_content_type()
-            final_url = response.url
+        page, content_type, final_url = fetch_icon_data(opener, url, 512 * 1024)
         if content_type in {"text/html", "application/xhtml+xml"}:
             parser.feed(page.decode("utf-8", errors="ignore"))
     except (OSError, ValueError) as exc:
@@ -234,10 +251,7 @@ def download_icon(url: str, name: str, directory: Path) -> str | None:
         if urlsplit(icon_url).scheme not in {"http", "https"}:
             continue
         try:
-            with urlopen(Request(icon_url, headers={"User-Agent": "acm-nav/1.0"}), timeout=5) as response:
-                data = response.read(2 * 1024 * 1024 + 1)
-                content_type = response.headers.get_content_type()
-                image_url = response.url
+            data, content_type, image_url = fetch_icon_data(opener, icon_url, 2 * 1024 * 1024 + 1, final_url)
             # Cockpit 的 /favicon.ico 可能实际是 PNG，且标记为 text/plain。
             # 优先识别二进制图片签名，避免依赖错误的 MIME 和扩展名。
             for signature, detected_type in (

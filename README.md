@@ -7,7 +7,7 @@ TOML 驱动的 ACM 集训队导航页，支持链接、Markdown 公告、资源�
 Linux 服务器需要 Python 3.11+。以下以 `/opt/acm-nav` 为安装目录，服务使用当前登录用户运行；更换目录时同步修改命令和 systemd 配置。
 
 ```bash
-VERSION=v1.0.19
+VERSION=v1.0.20
 sudo apt install python3 python3-venv unzip curl
 curl -fLO "https://github.com/fsfgrafb/acm-nav/releases/download/$VERSION/acm-nav-$VERSION.zip"
 sudo mkdir -p /opt/acm-nav
@@ -50,7 +50,7 @@ sudo systemctl status acm-nav --no-pager
 
 ```bash
 set -e
-VERSION=v1.0.19
+VERSION=v1.0.20
 APP_DIR=/opt/acm-nav
 curl -fLO "https://github.com/fsfgrafb/acm-nav/releases/download/$VERSION/acm-nav-$VERSION.zip"
 unzip -tq "acm-nav-$VERSION.zip"
@@ -92,13 +92,15 @@ sudo systemctl status acm-nav --no-pager
 | `url` | 空 | `link` 必填 HTTP(S) 地址；`resource` 必填地址或资源文件名；`info` 可选 `.md`、`.markdown`、`.txt` 文件地址。 |
 | `content` | 空 | 公告 Markdown 内容；填写 `url` 时优先读取文件。 |
 
-链接图标在启动、每次有效的 `config.toml` 热更新和每天北京时间凌晨 1 点全量检查并后台抓取，先尝试网页声明的图标，再尝试 `/favicon.ico`。规则如下：
+链接图标在启动、每次有效的 `config.toml` 热更新和每天北京时间凌晨 1 点全量检查并后台抓取，先尝试网页声明的图标，再尝试 `/favicon.ico`。临时网络错误最多尝试 3 次，单次超时 10 秒；抓取图标时保留页面会话与来源地址。规则如下：
 
 - `icon` 未填写或为空：抓取成功后以卡片 `name` 加图片实际后缀保存，并写回 `icon`；失败则不写入 `icon`，显示 `link.svg`。
 - `icon` 文件名去掉最后一个后缀与卡片 `name` 相同：重新抓取并更新文件和 `icon`；失败则清除 `icon`，显示 `link.svg`。
 - `icon` 文件名去掉后缀与 `name` 不同：作为手工指定的图标保留，即使文件不存在也不会自动抓取或覆盖。
 
 自动生成的图标以 `name` 命名，建议卡片名称唯一且不包含文件名保留字符。抓取期间修改配置会排队重试，不会用旧配置覆盖新编辑；图标写回自身不会再次触发抓取。向图标目录新增或替换文件也会通知已打开的页面更新图标。
+
+仅由 JavaScript 动态设置且未在 HTML 中声明的图标，可将图标文件上传到 `static/icons/services/`，并把 `icon` 设为与卡片名称不同的文件名，作为手工图标保留。
 
 资源和公告支持 HTTP(S)、文件名简写或 `/resources/` 路径。所有可见卡片按页面顺序使用同一个颜色池，跨区域循环。
 

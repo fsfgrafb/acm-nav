@@ -7,7 +7,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import tomlkit
-from backend.config import read_config, collect_icon_updates, apply_icon_updates, load_site, download_icon
+from backend.config import read_config, collect_icon_updates, apply_icon_updates, load_site, download_icon, fetch_icon_data
 from backend.main import LiveSite, initial_document, seconds_until_icon_refresh
 
 
@@ -86,12 +86,55 @@ class IconTests(unittest.TestCase):
                 self.headers = Message()
                 self.headers['Content-Type'] = mime
                 self.url = url
-        with patch('backend.config.urlopen', side_effect=[
-            Response(b'<html></html>', 'text/html', 'https://example.com'),
-            Response(b'\x89PNG\r\n\x1a\nimage', 'text/plain', 'https://example.com/favicon.ico'),
-        ]):
+        with patch('backend.config.build_opener') as opener:
+            opener.return_value.open.side_effect = [
+                Response(b'<html></html>', 'text/html', 'https://example.com'),
+                Response(b'\x89PNG\r\n\x1a\nimage', 'text/plain', 'https://example.com/favicon.ico'),
+            ]
             self.assertEqual(download_icon('https://example.com', 'Name', self.root), 'Name.png')
         self.assertTrue((self.root / 'Name.png').is_file())
+
+    def test_temporary_icon_failure_retries_with_page_referer(self):
+        from email.message import Message
+        from io import BytesIO
+        from unittest.mock import Mock
+        class Response(BytesIO):
+            def __init__(self, body, mime, url):
+                super().__init__(body)
+                self.headers = Message()
+                self.headers['Content-Type'] = mime
+                self.url = url
+        page = 'https://example.com/login'
+        opener = Mock()
+        opener.open.side_effect = [
+            Response(b'<link rel="icon" href="/logo/favicon.ico">', 'text/html', page),
+            TimeoutError('temporary'),
+            Response(b'\x00\x00\x01\x00image', 'image/x-icon', 'https://example.com/logo/favicon.ico'),
+        ]
+        with patch('backend.config.build_opener', return_value=opener), patch('backend.config.time.sleep'):
+            self.assertEqual(download_icon(page, 'Name', self.root), 'Name.ico')
+        self.assertEqual(opener.open.call_count, 3)
+        self.assertEqual(opener.open.call_args.args[0].get_header('Referer'), page)
+
+    def test_not_found_does_not_retry(self):
+        from unittest.mock import Mock
+        from urllib.error import HTTPError
+        opener = Mock()
+        opener.open.side_effect = HTTPError('https://example.com/missing', 404, 'Missing', {}, None)
+        with patch('backend.config.time.sleep') as sleep:
+            with self.assertRaises(HTTPError):
+                fetch_icon_data(opener, 'https://example.com/missing', 100)
+        self.assertEqual(opener.open.call_count, 1)
+        sleep.assert_not_called()
+
+    def test_temporary_failures_are_bounded(self):
+        from unittest.mock import Mock
+        opener = Mock()
+        opener.open.side_effect = TimeoutError('temporary')
+        with patch('backend.config.time.sleep'):
+            with self.assertRaises(TimeoutError):
+                fetch_icon_data(opener, 'https://example.com/icon', 100)
+        self.assertEqual(opener.open.call_count, 3)
 
 
 class ScheduleTests(unittest.TestCase):
